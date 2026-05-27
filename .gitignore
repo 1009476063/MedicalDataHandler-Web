@@ -1,0 +1,32 @@
+# Dependencies
+frontend/node_modules/
+backend/.venv/
+__pycache__/
+*.pyc
+
+# Build output
+frontend/dist/
+
+# Uploads (runtime data)
+backend/uploads/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Environment
+.env
+.env.local
+
+# Logs
+*.log
+/tmp/
+
+# Lock files (keep pnpm-lock, ignore package-lock)
+frontend/package-lock.json

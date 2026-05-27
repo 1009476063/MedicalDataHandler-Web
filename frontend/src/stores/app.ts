@@ -1,0 +1,207 @@
+import { defineStore } from 'pinia'
+import { ref, computed } from 'vue'
+import type { Patient, SliceData, StructInfo, DoseInfo, SeriesInfo } from '@/types'
+import axios from 'axios'
+
+export const useAppStore = defineStore('app', () => {
+  const sessionId = ref<string | null>(null)
+  const patients = ref<Patient[]>([])
+  const selectedPatientId = ref<string | null>(null)
+  const selectedSeriesUid = ref<string | null>(null)
+  const uploading = ref(false)
+  const uploadProgress = ref(0)
+
+  const currentPatient = computed(() =>
+    patients.value.find(p => p.patient_id === selectedPatientId.value)
+  )
+
+  const currentSeries = computed(() => {
+    if (!currentPatient.value || !selectedSeriesUid.value) return null
+    for (const study of currentPatient.value.studies) {
+      const s = study.series.find(sr => sr.series_uid === selectedSeriesUid.value)
+      if (s) return s
+    }
+    return null
+  })
+
+  const MEDICAL_FORMATS = /\.(nii\.gz|nii|nrrd|nhdr|mha|mhd)$/i
+
+  async function uploadFiles(files: File[], onProgress?: (p: number) => void) {
+    uploading.value = true
+    uploadProgress.value = 0
+
+    const hasMedicalFormat = files.some(f => MEDICAL_FORMATS.test(f.name))
+    const endpoint = hasMedicalFormat ? '/api/upload/medical' : '/api/dicom/upload'
+
+    const formData = new FormData()
+    files.forEach(f => formData.append('files', f))
+
+    try {
+      const res = await axios.post(endpoint, formData, {
+        onUploadProgress: (e) => {
+          if (e.total) {
+            const p = Math.round((e.loaded / e.total) * 100)
+            uploadProgress.value = p
+            onProgress?.(p)
+          }
+        },
+      })
+      sessionId.value = res.data.session_id
+      patients.value = res.data.patients
+      if (patients.value.length > 0) {
+        selectedPatientId.value = patients.value[0].patient_id
+      }
+    } finally {
+      uploading.value = false
+    }
+  }
+
+  async function refreshPatients() {
+    if (!sessionId.value) return
+    const res = await axios.get(`/api/dicom/patients/${sessionId.value}`)
+    patients.value = res.data.patients
+  }
+
+  async function getSlice(
+    seriesUid: string, orientation: string, sliceIndex: number,
+    windowCenter?: number, windowWidth?: number
+  ): Promise<SliceData | null> {
+    if (!sessionId.value || !selectedPatientId.value) return null
+    try {
+      const res = await axios.post('/api/dicom/slice', {
+        session_id: sessionId.value,
+        patient_id: selectedPatientId.value,
+        series_uid: seriesUid,
+        orientation,
+        slice_index: sliceIndex,
+        window_center: windowCenter ?? null,
+        window_width: windowWidth ?? null,
+      })
+      return res.data
+    } catch {
+      return null
+    }
+  }
+
+  async function getSeriesInfo(seriesUid: string): Promise<SeriesInfo | null> {
+    if (!sessionId.value || !selectedPatientId.value) return null
+    try {
+      const res = await axios.get(
+        `/api/dicom/series-info/${sessionId.value}/${selectedPatientId.value}/${seriesUid}`
+      )
+      return res.data
+    } catch {
+      return null
+    }
+  }
+
+  async function getStructs(): Promise<StructInfo[]> {
+    if (!sessionId.value || !selectedPatientId.value) return []
+    try {
+      const res = await axios.get(
+        `/api/dicom/structs/${sessionId.value}/${selectedPatientId.value}`
+      )
+      return res.data.structures
+    } catch {
+      return []
+    }
+  }
+
+  async function getStructMask(structKey: string, sliceIndex: number, orientation = 'axial') {
+    if (!sessionId.value || !selectedPatientId.value) return null
+    try {
+      const res = await axios.get(
+        `/api/dicom/struct-mask/${sessionId.value}/${selectedPatientId.value}/${structKey}/${sliceIndex}?orientation=${orientation}`
+      )
+      return res.data
+    } catch {
+      return null
+    }
+  }
+
+  async function getDoseInfo(): Promise<DoseInfo[]> {
+    if (!sessionId.value || !selectedPatientId.value) return []
+    try {
+      const res = await axios.get(
+        `/api/dicom/dose-info/${sessionId.value}/${selectedPatientId.value}`
+      )
+      return res.data.doses
+    } catch {
+      return []
+    }
+  }
+
+  async function getDoseSlice(doseUid: string, sliceIndex: number, orientation = 'axial') {
+    if (!sessionId.value || !selectedPatientId.value) return null
+    try {
+      const res = await axios.get(
+        `/api/dicom/dose/${sessionId.value}/${selectedPatientId.value}/${doseUid}/${sliceIndex}?orientation=${orientation}`
+      )
+      return res.data
+    } catch {
+      return null
+    }
+  }
+
+  function selectPatient(patientId: string) {
+    selectedPatientId.value = patientId
+    selectedSeriesUid.value = null
+  }
+
+  function selectSeries(seriesUid: string) {
+    selectedSeriesUid.value = seriesUid
+  }
+
+  async function getFileMetadata(fileId: string): Promise<Record<string, unknown> | null> {
+    if (!sessionId.value) return null
+    try {
+      const res = await axios.get(`/api/dicom/metadata/${sessionId.value}/${fileId}`)
+      return res.data
+    } catch {
+      return null
+    }
+  }
+
+  async function getPatientDetail(patientId: string): Promise<{ id: string; filename: string; modality: string; series_uid: string }[]> {
+    if (!sessionId.value) return []
+    try {
+      const res = await axios.get(`/api/dicom/patient/${sessionId.value}/${patientId}`)
+      return res.data.files || []
+    } catch {
+      return []
+    }
+  }
+
+  async function getRoiBounds(structKey: string) {
+    if (!sessionId.value || !selectedPatientId.value) return null
+    try {
+      const res = await axios.get(
+        `/api/dicom/roi-bounds/${sessionId.value}/${selectedPatientId.value}/${structKey}`
+      )
+      return res.data as { name: string; bounds: { x: number[]; y: number[]; z: number[] }; center: { x: number; y: number; z: number } }
+    } catch {
+      return null
+    }
+  }
+
+  async function exportNrrd(
+    patientId: string,
+    seriesUid: string,
+    format: string = 'ct'
+  ): Promise<Blob> {
+    if (!sessionId.value) throw new Error('No active session')
+    const res = await axios.get(
+      `/api/export/nrrd/${sessionId.value}/${patientId}/${seriesUid}?format=${format}`,
+      { responseType: 'blob' }
+    )
+    return res.data
+  }
+
+  return {
+    sessionId, patients, selectedPatientId, selectedSeriesUid,
+    uploading, uploadProgress, currentPatient, currentSeries,
+    uploadFiles, refreshPatients, getSlice, getSeriesInfo,
+    getStructs, getStructMask, getDoseInfo, getDoseSlice,
+    selectPatient, selectSeries, getFileMetadata, getPatientDetail, getRoiBounds, exportNrrd,
+  }
+})
