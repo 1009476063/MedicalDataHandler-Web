@@ -6,6 +6,8 @@
 
 基于 Web 的放射治疗医学影像查看与处理平台。支持 DICOM、NIfTI、NRRD、MHA 格式，具备多平面重建、结构/剂量叠加和 RT 计划分析功能。
 
+**在线体验：** https://medical.1661688.xyz
+
 ![Vue 3](https://img.shields.io/badge/Vue-3-42b883?logo=vue.js)
 ![FastAPI](https://img.shields.io/badge/FastAPI-0.115-009688?logo=fastapi)
 ![Python](https://img.shields.io/badge/Python-3.10+-3776ab?logo=python)

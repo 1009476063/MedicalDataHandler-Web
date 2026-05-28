@@ -6,6 +6,8 @@
 
 A web-based medical image viewer and processing platform for radiation therapy. Supports DICOM, NIfTI, NRRD, and MHA formats with multi-planar reconstruction, structure/dose overlays, and RT plan analysis.
 
+**Live Demo:** https://medical.1661688.xyz
+
 ![Vue 3](https://img.shields.io/badge/Vue-3-42b883?logo=vue.js)
 ![FastAPI](https://img.shields.io/badge/FastAPI-0.115-009688?logo=fastapi)
 ![Python](https://img.shields.io/badge/Python-3.10+-3776ab?logo=python)
