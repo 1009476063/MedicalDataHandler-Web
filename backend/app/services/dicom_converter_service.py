@@ -43,17 +43,30 @@ def _get_session_dir(session_id: str) -> Path:
 
 
 def _load_pixel_data(session: dict, file_id: str) -> Optional[dict]:
-    """Load pixel data for a file, preferring in-memory, falling back to disk .npy."""
+    """Load pixel data for a file from disk .npy (kept as numpy array)."""
     raw = session.get("raw_data", {}).get(file_id)
-    if raw and raw.get("data") is not None:
+    if not raw:
+        return None
+
+    # Load pixel data from disk .npy file
+    data_path = raw.get("data_path")
+    if data_path:
+        try:
+            arr = np.load(data_path)
+            return {**raw, "data": arr}
+        except Exception:
+            pass
+
+    # Fallback: legacy in-memory data
+    if raw.get("data") is not None:
         return raw
 
-    # Fallback: load from disk if .npy was persisted
+    # Legacy fallback: try .npy in session dir
     npy_path = _get_session_dir(session["session_id"]) / f"{file_id}.npy"
     if npy_path.exists():
         try:
             arr = np.load(str(npy_path))
-            return {"data": arr.tolist(), "spacing": [1.0, 1.0], "position": [0, 0, 0], "slice_location": 0.0}
+            return {**raw, "data": arr}
         except Exception:
             pass
 
@@ -255,10 +268,15 @@ def convert_mr_series(
         float(row_cos[2]), float(col_cos[2]), float(z_dir[2]),
     ]
 
-    volume_list = [i[0] for i in fuse_list]
-    volume = np.array(volume_list)
-    if volume.dtype != np.uint16:
-        volume = np.clip(np.rint(volume), 0, 65535).astype(np.uint16)
+    # Pre-allocate volume array and fill slice-by-slice to reduce peak memory
+    slice_shape = fuse_list[0][0].shape
+    num_slices = len(fuse_list)
+    volume = np.empty((num_slices,) + slice_shape, dtype=np.uint16)
+    for i, item in enumerate(fuse_list):
+        arr = item[0]
+        if arr.dtype != np.uint16:
+            arr = np.clip(np.rint(arr), 0, 65535).astype(np.uint16)
+        volume[i] = arr
 
     spacing = np.array([z_spacing, float(pixel_spacing[0]), float(pixel_spacing[1])], dtype=np.float64)
 

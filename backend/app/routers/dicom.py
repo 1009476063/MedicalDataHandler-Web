@@ -44,6 +44,8 @@ class SliceRequest(BaseModel):
 @router.post("/upload", response_model=UploadResponse)
 async def upload_dicom(files: list[UploadFile] = File(...)):
     result = await dicom_service.process_upload(files)
+    if result.get("error"):
+        raise HTTPException(status_code=413, detail=result["error"])
     return result
 
 

@@ -1,11 +1,22 @@
+from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from pathlib import Path
 
 from app.routers import dicom, export, config, postprocessing, logging, medical_formats, converter, analysis
+from app.services.dicom_service import dicom_service
 
-app = FastAPI(title="MedicalDataHandler Web", version="1.0.0")
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # Start background session cleanup on app startup
+    import asyncio
+    loop = asyncio.get_event_loop()
+    loop.create_task(dicom_service._periodic_cleanup())
+    yield
+
+app = FastAPI(title="MedicalDataHandler Web", version="1.0.0", lifespan=lifespan)
 
 app.add_middleware(
     CORSMiddleware,

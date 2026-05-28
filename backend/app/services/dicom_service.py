@@ -2,6 +2,7 @@ import pydicom
 import uuid
 import asyncio
 import numpy as np
+import shutil
 import time
 from pathlib import Path
 from typing import Optional
@@ -13,6 +14,11 @@ import re
 from app.services.log_service import log_service
 
 SESSION_TTL = 1800  # 30 minutes
+CLEANUP_INTERVAL = 300  # 5 minutes
+MAX_FILES_PER_SESSION = 50000
+MAX_SESSION_SIZE_MB = 20000  # 20 GB
+
+UPLOAD_DIR = Path("uploads")
 
 DICOM_TAGS = {
     "PatientName": "00100010",
@@ -54,6 +60,12 @@ class DicomService:
         self.sessions: dict[str, dict] = {}
         self._session_timestamps: dict[str, float] = {}
 
+    async def _periodic_cleanup(self):
+        """Background task: clean up expired sessions every CLEANUP_INTERVAL."""
+        while True:
+            await asyncio.sleep(CLEANUP_INTERVAL)
+            self._cleanup_expired()
+
     def _cleanup_expired(self):
         now = time.time()
         expired = [sid for sid, ts in self._session_timestamps.items()
@@ -61,6 +73,13 @@ class DicomService:
         for sid in expired:
             self.sessions.pop(sid, None)
             self._session_timestamps.pop(sid, None)
+            # Remove session files from disk
+            session_dir = UPLOAD_DIR / sid
+            if session_dir.exists():
+                try:
+                    shutil.rmtree(session_dir, ignore_errors=True)
+                except Exception:
+                    pass
         if expired:
             log_service.info(f"Cleaned up {len(expired)} expired session(s)", "session")
 
@@ -76,6 +95,24 @@ class DicomService:
 
     def process_upload_bytes(self, file_bytes_list: list[tuple[str, bytes]]) -> dict:
         self._cleanup_expired()
+
+        if len(file_bytes_list) > MAX_FILES_PER_SESSION:
+            return {
+                "session_id": "",
+                "patients": [],
+                "file_count": 0,
+                "error": f"Too many files: {len(file_bytes_list)} exceeds limit of {MAX_FILES_PER_SESSION}",
+            }
+
+        total_size_mb = sum(len(content) for _, content in file_bytes_list) / (1024 * 1024)
+        if total_size_mb > MAX_SESSION_SIZE_MB:
+            return {
+                "session_id": "",
+                "patients": [],
+                "file_count": 0,
+                "error": f"Upload too large: {total_size_mb:.0f} MB exceeds limit of {MAX_SESSION_SIZE_MB} MB",
+            }
+
         session_id = str(uuid.uuid4())[:8]
         self.sessions[session_id] = {
             "files": {},
@@ -83,7 +120,11 @@ class DicomService:
             "series": {},
             "studies": {},
             "raw_data": {},
+            "session_id": session_id,
         }
+        # Create pixel data directory for this session
+        pixel_dir = UPLOAD_DIR / session_id / "pixels"
+        pixel_dir.mkdir(parents=True, exist_ok=True)
         self._touch_session(session_id)
 
         log_service.info(f"Upload started: {len(file_bytes_list)} files", "upload")
@@ -193,19 +234,27 @@ class DicomService:
         series["file_count"] += 1
 
         if modality in ("CT", "MR", "PT", "NM", "US", "XA"):
-            session["raw_data"][file_id] = self._extract_pixel_data(ds)
+            session["raw_data"][file_id] = self._extract_pixel_data(ds, session_id, file_id)
 
         # Store raw bytes for RT files so builders can re-parse them
         if modality in ("RTSTRUCT", "RTDOSE", "RTPLAN"):
             session["raw_data"][file_id] = {"raw_bytes": raw_bytes}
 
-    def _extract_pixel_data(self, ds) -> Optional[dict]:
+    def _extract_pixel_data(self, ds, session_id: str, file_id: str) -> Optional[dict]:
         try:
             pixel_array = ds.pixel_array.astype(np.float64)
             if hasattr(ds, "RescaleSlope") and hasattr(ds, "RescaleIntercept"):
                 pixel_array = pixel_array * float(ds.RescaleSlope) + float(ds.RescaleIntercept)
+
+            # Save pixel data to disk to avoid holding large arrays in memory
+            npy_path = UPLOAD_DIR / session_id / "pixels" / f"{file_id}.npy"
+            try:
+                np.save(str(npy_path), pixel_array)
+            except Exception:
+                npy_path = None
+
             return {
-                "data": pixel_array,  # Keep as numpy array, convert to list only at response time
+                "data_path": str(npy_path) if npy_path else None,
                 "shape": list(pixel_array.shape),
                 "position": [float(v) for v in getattr(ds, "ImagePositionPatient", [0, 0, 0])],
                 "spacing": [float(v) for v in getattr(ds, "PixelSpacing", [1, 1])],

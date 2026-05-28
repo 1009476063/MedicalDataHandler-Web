@@ -43,6 +43,12 @@ A web-based medical image viewer and processing platform for radiation therapy. 
 - **Smart Series Selection** — Automatically selects the best series for each type based on file count, geometry matching, and clinical rules
 - **DICOM Anonymization** — Remove patient PHI (Personally Identifiable Information) from DICOM files
 
+### Scalability & Memory Management
+- **Disk-Based Pixel Storage** — Pixel data saved to `.npy` files on disk immediately after upload; only metadata kept in memory. Supports tens of thousands of DICOM files per session.
+- **Upload Validation** — Enforces limits: 50,000 files/session, 20 GB total upload size
+- **Background Session Cleanup** — Expired sessions (30 min TTL) auto-cleaned every 5 minutes, including disk files
+- **Optimized Conversion** — Pre-allocated volume arrays and on-demand pixel loading reduce peak memory during NIfTI conversion
+
 ### Multi-Format Support
 | Format | Extension | Reader |
 |--------|-----------|--------|
@@ -75,8 +81,8 @@ MedicalDataHandler-Web/
 │   │   │   ├── config.py    # TG-263 config, window presets
 │   │   │   └── logging.py   # Activity logging
 │   │   ├── services/        # Business logic
-│   │   │   ├── dicom_service.py    # DICOM session management
-│   │   │   ├── dicom_converter_service.py # DICOM-to-NIfTI conversion logic
+│   │   │   ├── dicom_service.py    # DICOM session management, disk-based pixel storage, background cleanup
+│   │   │   ├── dicom_converter_service.py # DICOM-to-NIfTI conversion (on-demand pixel loading, pre-allocated volumes)
 │   │   │   ├── sequence_analysis_service.py # Intelligent sequence classification & selection
 │   │   │   ├── image_builder.py    # Volume building & slice extraction
 │   │   │   ├── rt_struct_builder.py # RT structure contour processing
