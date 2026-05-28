@@ -1,3 +1,7 @@
+<p align="right">
+  <b>English</b> | <a href="./README.zh-CN.md">中文</a>
+</p>
+
 # MedicalDataHandler Web
 
 A web-based medical image viewer and processing platform for radiation therapy. Supports DICOM, NIfTI, NRRD, and MHA formats with multi-planar reconstruction, structure/dose overlays, and RT plan analysis.
