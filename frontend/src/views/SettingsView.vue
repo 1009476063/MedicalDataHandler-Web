@@ -378,7 +378,7 @@
           <p>{{ $t('settings.aboutTitle') }}</p>
           <p>{{ $t('settings.aboutDesc') }}</p>
           <a
-            href="https://github.com/AustenMan/MedicalDataHandler"
+            href="https://github.com/1009476063/MedicalDataHandler-Web"
             target="_blank"
             class="text-primary-500 hover:text-primary-600 transition-colors"
           >

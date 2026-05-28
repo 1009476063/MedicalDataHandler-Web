@@ -23,7 +23,7 @@
         </div>
 
         <a
-          href="https://github.com/AustenMan/MedicalDataHandler"
+          href="https://github.com/1009476063/MedicalDataHandler-Web"
           target="_blank"
           class="hidden sm:flex p-2 rounded-xl text-accent-600 dark:text-accent-400 hover:bg-accent-100 dark:hover:bg-accent-800"
         >
