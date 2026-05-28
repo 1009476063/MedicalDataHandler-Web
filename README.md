@@ -32,7 +32,16 @@ A web-based medical image viewer and processing platform for radiation therapy. 
 ### Post-Processing
 - **HU-to-RED Conversion** — CT Hounsfield Units to Relative Electron Density with 450+ point calibration table
 - **TG-263 Auto-Rename** — Batch rename structures to TG-263 standard naming conventions
+- **Dose Summation** — Combine multiple dose distributions into a single volume
 - **NRRD Export** — Export CT (HU) and RED volumes as NRRD files for AI/ML pipelines
+
+### Converter & Sequence Analysis
+- **DICOM to NIfTI Conversion** — Convert DICOM series to NIfTI format for AI/ML pipelines with real-time SSE progress
+- **Intelligent Sequence Analysis** — Automatic classification of DICOM series into ADC, DWI, DCE, MG, US types using advanced DICOM tags (DiffusionBValue, TemporalPositionIdentifier, ContrastBolusAgent, ImageType, etc.)
+- **DCE Phase Detection** — Groups dynamic contrast-enhanced series by temporal position or acquisition time
+- **DWI B-value Analysis** — Infers b-value count (single vs dual) from slice geometry
+- **Smart Series Selection** — Automatically selects the best series for each type based on file count, geometry matching, and clinical rules
+- **DICOM Anonymization** — Remove patient PHI (Personally Identifiable Information) from DICOM files
 
 ### Multi-Format Support
 | Format | Extension | Reader |
@@ -58,6 +67,8 @@ MedicalDataHandler-Web/
 │   │   ├── main.py          # App entry, CORS, routers
 │   │   ├── routers/         # API endpoints
 │   │   │   ├── dicom.py     # DICOM upload, slice, structs, dose, plans, ROI bounds
+│   │   │   ├── converter.py # DICOM-to-NIfTI conversion (scan, convert-stream, anonymize, download)
+│   │   │   ├── analysis.py  # Sequence analysis (ADC/DWI/DCE/MG/US classification)
 │   │   │   ├── export.py    # NRRD volume export
 │   │   │   ├── postprocessing.py  # HU-RED, dose summation, TG-263 rename
 │   │   │   ├── medical_formats.py # NIfTI/NRRD/MHA upload
@@ -65,6 +76,8 @@ MedicalDataHandler-Web/
 │   │   │   └── logging.py   # Activity logging
 │   │   ├── services/        # Business logic
 │   │   │   ├── dicom_service.py    # DICOM session management
+│   │   │   ├── dicom_converter_service.py # DICOM-to-NIfTI conversion logic
+│   │   │   ├── sequence_analysis_service.py # Intelligent sequence classification & selection
 │   │   │   ├── image_builder.py    # Volume building & slice extraction
 │   │   │   ├── rt_struct_builder.py # RT structure contour processing
 │   │   │   ├── rt_dose_builder.py  # RT dose grid processing
@@ -80,7 +93,7 @@ MedicalDataHandler-Web/
 │   │   ├── components/      # Reusable components
 │   │   │   ├── layout/      # AppLayout, AppSidebar, AppHeader
 │   │   │   ├── viewer/      # ImageSliceViewer (canvas-based)
-│   │   │   └── common/      # DataTable, StatusBadge, etc.
+│   │   │   └── common/      # DataTable, StatusBadge, SequenceCard, etc.
 │   │   ├── stores/          # Pinia state management
 │   │   ├── i18n/            # English + Chinese translations
 │   │   ├── router/          # Vue Router with lazy loading
@@ -147,6 +160,11 @@ Frontend runs at `http://localhost:3000` (production proxy)
 | GET | `/api/dicom/roi-bounds/{session}/{patient}/{key}` | Get ROI bounding box |
 | GET | `/api/dicom/dose/{session}/{patient}/{uid}/{slice}` | Get dose slice |
 | GET | `/api/dicom/plans/{session}/{patient}` | Get RT plans |
+| POST | `/api/converter/scan` | Scan patient series for conversion |
+| POST | `/api/converter/convert-stream` | Convert DICOM to NIfTI (SSE progress) |
+| POST | `/api/converter/anonymize` | Anonymize DICOM files |
+| GET | `/api/converter/download/{session}/{filename}` | Download converted file |
+| POST | `/api/analysis/analyze` | Analyze & classify DICOM sequences |
 | POST | `/api/postprocessing/convert-hu` | HU to RED conversion |
 | POST | `/api/postprocessing/sum-doses` | Sum dose distributions |
 | POST | `/api/postprocessing/auto-rename-structs` | TG-263 batch rename |

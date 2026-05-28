@@ -3,7 +3,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from pathlib import Path
 
-from app.routers import dicom, export, config, postprocessing, logging, medical_formats
+from app.routers import dicom, export, config, postprocessing, logging, medical_formats, converter, analysis
 
 app = FastAPI(title="MedicalDataHandler Web", version="1.0.0")
 
@@ -21,6 +21,8 @@ app.include_router(config.router, prefix="/api/config", tags=["Config"])
 app.include_router(postprocessing.router, prefix="/api/postprocessing", tags=["Post-Processing"])
 app.include_router(logging.router, prefix="/api/logging", tags=["Logging"])
 app.include_router(medical_formats.router, prefix="/api", tags=["Medical Formats"])
+app.include_router(converter.router, prefix="/api/converter", tags=["Converter"])
+app.include_router(analysis.router, prefix="/api/analysis", tags=["Analysis"])
 
 UPLOAD_DIR = Path("uploads")
 UPLOAD_DIR.mkdir(exist_ok=True)

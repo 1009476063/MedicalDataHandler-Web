@@ -137,7 +137,8 @@ import {
   SunIcon, MoonIcon, ChevronLeftIcon,
   HomeIcon, UserGroupIcon, CubeTransparentIcon,
   ArrowUpTrayIcon, CogIcon, DocumentTextIcon,
-  BeakerIcon, TableCellsIcon, WrenchScrewdriverIcon
+  BeakerIcon, TableCellsIcon, WrenchScrewdriverIcon,
+  ArrowsRightLeftIcon
 } from '@heroicons/vue/24/outline'
 
 interface Props {
@@ -163,6 +164,7 @@ const dataNavItems = computed(() => [
 ])
 
 const toolNavItems = computed(() => [
+  { path: '/converter', label: t('sidebar.nav.converter'), icon: ArrowsRightLeftIcon },
   { path: '/metadata', label: t('sidebar.nav.metadata'), icon: DocumentTextIcon },
   { path: '/processing', label: t('sidebar.nav.postProcessing'), icon: WrenchScrewdriverIcon },
   { path: '/export', label: t('sidebar.nav.export'), icon: ArrowUpTrayIcon },

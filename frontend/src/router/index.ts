@@ -47,6 +47,12 @@ const router = createRouter({
       meta: { titleKey: 'sidebar.nav.export' },
     },
     {
+      path: '/converter',
+      name: 'converter',
+      component: () => import('@/views/ConverterView.vue'),
+      meta: { titleKey: 'sidebar.nav.converter' },
+    },
+    {
       path: '/processing',
       name: 'processing',
       component: () => import('@/views/PostProcessingView.vue'),
@@ -70,6 +76,7 @@ const routeImports = [
   () => import('@/views/DataTableView.vue'),
   () => import('@/views/PlansView.vue'),
   () => import('@/views/ExportView.vue'),
+  () => import('@/views/ConverterView.vue'),
   () => import('@/views/PostProcessingView.vue'),
   () => import('@/views/SettingsView.vue'),
 ]

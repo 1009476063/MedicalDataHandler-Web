@@ -8,5 +8,6 @@ SimpleITK==2.3.1
 numpy==1.26.4
 Pillow==10.4.0
 pynrrd==1.0.0
+scipy>=1.11.0
 aiofiles==24.1.0
 websockets==12.0

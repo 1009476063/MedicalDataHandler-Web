@@ -37,6 +37,15 @@ DICOM_TAGS = {
     "BitsStored": "00280101",
     "NumberOfFrames": "00280008",
     "PhotometricInterpretation": "00280004",
+    # Sequence analysis tags
+    "DiffusionBValue": "00189087",
+    "TemporalPositionIdentifier": "00200100",
+    "ContrastBolusAgent": "00180010",
+    "ImageType": "00080008",
+    "ScanningSequence": "00180020",
+    "AcquisitionTime": "00080032",
+    "ViewPosition": "00185101",
+    "ImageLaterality": "00200062",
 }
 
 
