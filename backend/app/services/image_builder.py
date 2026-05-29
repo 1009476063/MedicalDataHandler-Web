@@ -10,7 +10,7 @@ class ImageBuilder:
         self._cache: dict[str, dict] = {}
 
     def _build_volume(self, session, patient_id: str, series_uid: Optional[str] = None) -> Optional[dict]:
-        cache_key = f"{session.get('_session_id', '')}_{patient_id}_{series_uid or 'all'}"
+        cache_key = f"{session.get('session_id', '')}_{patient_id}_{series_uid or 'all'}"
         if cache_key in self._cache:
             return self._cache[cache_key]
 
@@ -95,19 +95,21 @@ class ImageBuilder:
             return None
 
         arr = volume["array"]
-        ndim = arr.ndim
 
         if orientation == "axial":
-            if slice_index >= arr.shape[0]:
-                slice_index = arr.shape[0] // 2
+            max_idx = arr.shape[0]
+            if slice_index < 0 or slice_index >= max_idx:
+                slice_index = max_idx // 2
             slice_data = arr[slice_index, :, :]
         elif orientation == "sagittal":
-            if slice_index >= arr.shape[2]:
-                slice_index = arr.shape[2] // 2
+            max_idx = arr.shape[2]
+            if slice_index < 0 or slice_index >= max_idx:
+                slice_index = max_idx // 2
             slice_data = arr[:, :, slice_index]
         elif orientation == "coronal":
-            if slice_index >= arr.shape[1]:
-                slice_index = arr.shape[1] // 2
+            max_idx = arr.shape[1]
+            if slice_index < 0 or slice_index >= max_idx:
+                slice_index = max_idx // 2
             slice_data = arr[:, slice_index, :]
         else:
             return None

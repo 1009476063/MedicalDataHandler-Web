@@ -25,6 +25,10 @@ MAX_CONCURRENT_CONVERSIONS = 2
 
 UPLOAD_DIR = Path("uploads")
 
+# Validate session_id format (8-char hex from uuid4[:8]) and patient_id (alphanumeric + dots/hyphens)
+_SESSION_ID_RE = re.compile(r'^[0-9a-f]{8}$')
+_PATH_SAFE_RE = re.compile(r'^[a-zA-Z0-9._-]+$')
+
 DICOM_TAGS = {
     "PatientName": "00100010",
     "PatientID": "00100020",
@@ -66,6 +70,8 @@ class DicomService:
         self._session_timestamps: dict[str, float] = {}
         self.upload_semaphore = asyncio.Semaphore(MAX_CONCURRENT_UPLOADS)
         self.conversion_semaphore = asyncio.Semaphore(MAX_CONCURRENT_CONVERSIONS)
+        self._upload_slots = MAX_CONCURRENT_UPLOADS
+        self._conversion_slots = MAX_CONCURRENT_CONVERSIONS
 
     async def _periodic_cleanup(self):
         """Background task: clean up expired sessions every CLEANUP_INTERVAL."""
@@ -80,13 +86,14 @@ class DicomService:
         for sid in expired:
             self.sessions.pop(sid, None)
             self._session_timestamps.pop(sid, None)
-            # Remove session files from disk
-            session_dir = UPLOAD_DIR / sid
-            if session_dir.exists():
-                try:
-                    shutil.rmtree(session_dir, ignore_errors=True)
-                except Exception:
-                    pass
+            # Remove session files from disk (only valid session IDs)
+            if _SESSION_ID_RE.match(sid):
+                session_dir = (UPLOAD_DIR / sid).resolve()
+                if str(session_dir).startswith(str(UPLOAD_DIR.resolve())) and session_dir.exists():
+                    try:
+                        shutil.rmtree(session_dir, ignore_errors=True)
+                    except Exception:
+                        pass
         if expired:
             log_service.info(f"Cleaned up {len(expired)} expired session(s)", "session")
 
@@ -99,12 +106,13 @@ class DicomService:
             return False
         self.sessions.pop(session_id, None)
         self._session_timestamps.pop(session_id, None)
-        session_dir = UPLOAD_DIR / session_id
-        if session_dir.exists():
-            try:
-                shutil.rmtree(session_dir, ignore_errors=True)
-            except Exception:
-                pass
+        if _SESSION_ID_RE.match(session_id):
+            session_dir = (UPLOAD_DIR / session_id).resolve()
+            if str(session_dir).startswith(str(UPLOAD_DIR.resolve())) and session_dir.exists():
+                try:
+                    shutil.rmtree(session_dir, ignore_errors=True)
+                except Exception:
+                    pass
         log_service.info(f"Session {session_id} cleaned up explicitly", "session")
         return True
 

@@ -188,8 +188,8 @@ export const useAppStore = defineStore('app', () => {
         slice_index: parseInt(headers['x-slice-index'] || '0'),
         max_slice: parseInt(headers['x-slice-maxslice'] || '0'),
         spacing: JSON.parse(headers['x-slice-spacing'] || '[1,1,1]'),
-        window_center: parseFloat(headers['x-slice-windowcenter']) || null,
-        window_width: parseFloat(headers['x-slice-windowwidth']) || null,
+        window_center: (() => { const v = parseFloat(headers['x-slice-windowcenter']); return Number.isFinite(v) ? v : null; })(),
+        window_width: (() => { const v = parseFloat(headers['x-slice-windowwidth']); return Number.isFinite(v) ? v : null; })(),
       }
     } catch {
       return null

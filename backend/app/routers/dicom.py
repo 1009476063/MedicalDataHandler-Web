@@ -1,6 +1,6 @@
 from fastapi import APIRouter, UploadFile, File, HTTPException
 from fastapi.responses import StreamingResponse, Response
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from typing import Optional
 import pydicom
 import numpy as np
@@ -36,20 +36,25 @@ class SliceRequest(BaseModel):
     patient_id: str
     series_uid: str
     orientation: str  # axial, sagittal, coronal
-    slice_index: int
+    slice_index: int = Field(ge=0)
     window_center: Optional[float] = None
     window_width: Optional[float] = None
 
 
 @router.post("/upload", response_model=UploadResponse)
 async def upload_dicom(files: list[UploadFile] = File(...)):
-    if dicom_service.upload_semaphore.locked():
+    if dicom_service._upload_slots <= 0:
         raise HTTPException(status_code=429, detail="Server busy, too many concurrent uploads. Try again later.")
-    async with dicom_service.upload_semaphore:
+    await dicom_service.upload_semaphore.acquire()
+    dicom_service._upload_slots -= 1
+    try:
         result = await dicom_service.process_upload(files)
         if result.get("error"):
             raise HTTPException(status_code=413, detail=result["error"])
         return result
+    finally:
+        dicom_service._upload_slots += 1
+        dicom_service.upload_semaphore.release()
 
 
 @router.get("/patients/{session_id}")
