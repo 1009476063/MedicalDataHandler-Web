@@ -64,6 +64,13 @@ export interface SeriesInfo {
   mean: number
 }
 
+export interface VolumeInfo {
+  shape: number[]
+  spacing: number[]
+  origin: number[]
+  dtype: string
+}
+
 export interface PlanInfo {
   plan_label: string
   patient_id: string
@@ -87,6 +94,37 @@ export interface OverlaySettings {
   doseOpacity: number
   enabledStructs: string[]
   enabledDoses: string[]
+}
+
+export interface MeasurementItem {
+  uid: string
+  toolName: string
+  label: string
+  stats: Record<string, unknown>
+}
+
+export interface SegSegment {
+  segment_number: number
+  label: string
+  algorithm_type: string
+  color: number[]
+}
+
+export interface SegFile {
+  file_id: string
+  filename: string
+  series_uid: string
+  segments: SegSegment[]
+  frame_count: number
+  description: string
+}
+
+export interface SegMask {
+  segment_number: number
+  shape: number[]
+  origin: number[]
+  spacing: number[]
+  data: number[][][]
 }
 
 export interface QueueStatus {

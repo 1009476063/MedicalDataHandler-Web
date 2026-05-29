@@ -1,0 +1,707 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" lang xml:lang>
+<head>
+  <meta charset="utf-8" />
+  <meta name="generator" content="pandoc" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes" />
+  <title>竞品分析报告</title>
+  <style>
+    code{white-space: pre-wrap;}
+    span.smallcaps{font-variant: small-caps;}
+    span.underline{text-decoration: underline;}
+    div.column{display: inline-block; vertical-align: top; width: 50%;}
+    div.hanging-indent{margin-left: 1.5em; text-indent: -1.5em;}
+    ul.task-list{list-style: none;}
+    .display.math{display: block; text-align: center; margin: 0.5rem auto;}
+  </style>
+  <style type="text/css">
+@page {
+size: A4;
+margin: 2cm;
+}
+body {
+font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Noto Sans", Helvetica, Arial, sans-serif;
+font-size: 14px;
+line-height: 1.6;
+color: #24292e;
+max-width: 900px;
+margin: 0 auto;
+padding: 32px;
+background: #fff;
+}
+h1 {
+font-size: 2em;
+font-weight: 600;
+padding-bottom: 0.3em;
+border-bottom: 1px solid #eaecef;
+margin-top: 24px;
+margin-bottom: 16px;
+color: #0366d6;
+}
+h2 {
+font-size: 1.5em;
+font-weight: 600;
+padding-bottom: 0.3em;
+border-bottom: 1px solid #eaecef;
+margin-top: 24px;
+margin-bottom: 16px;
+color: #0366d6;
+}
+h3 {
+font-size: 1.25em;
+font-weight: 600;
+margin-top: 24px;
+margin-bottom: 16px;
+color: #24292e;
+}
+h4 {
+font-size: 1em;
+font-weight: 600;
+margin-top: 16px;
+margin-bottom: 8px;
+color: #24292e;
+}
+p {
+margin-top: 0;
+margin-bottom: 16px;
+}
+blockquote {
+margin: 0 0 16px 0;
+padding: 0 1em;
+color: #6a737d;
+border-left: 0.25em solid #dfe2e5;
+}
+blockquote p {
+margin-bottom: 0;
+}
+table {
+border-collapse: collapse;
+border-spacing: 0;
+width: 100%;
+margin-bottom: 16px;
+display: block;
+overflow: auto;
+font-size: 13px;
+}
+table th,
+table td {
+padding: 6px 13px;
+border: 1px solid #dfe2e5;
+}
+table tr {
+background-color: #fff;
+border-top: 1px solid #c6cbd1;
+}
+table tr:nth-child(2n) {
+background-color: #f6f8fa;
+}
+table th {
+font-weight: 600;
+background-color: #f6f8fa;
+}
+code {
+font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+font-size: 85%;
+background-color: rgba(27, 31, 35, 0.05);
+padding: 0.2em 0.4em;
+border-radius: 3px;
+color: #e36209;
+}
+pre {
+background-color: #f6f8fa;
+border-radius: 3px;
+padding: 16px;
+overflow: auto;
+font-size: 85%;
+line-height: 1.45;
+margin-bottom: 16px;
+}
+pre code {
+background-color: transparent;
+padding: 0;
+border-radius: 0;
+color: inherit;
+}
+hr {
+height: 0.25em;
+padding: 0;
+margin: 24px 0;
+background-color: #e1e4e8;
+border: 0;
+}
+strong {
+font-weight: 600;
+}
+a {
+color: #0366d6;
+text-decoration: none;
+}
+ul, ol {
+padding-left: 2em;
+margin-bottom: 16px;
+}
+li {
+margin-bottom: 4px;
+}
+li + li {
+margin-top: 0.25em;
+}
+
+@media print {
+body {
+padding: 0;
+}
+table {
+page-break-inside: avoid;
+}
+tr {
+page-break-inside: avoid;
+}
+h2, h3, h4 {
+page-break-after: avoid;
+}
+}
+</style>
+</head>
+<body>
+<header id="title-block-header">
+<h1 class="title">竞品分析报告</h1>
+</header>
+<h1 id="medicaldatahandler-web-竞品分析报告">MedVista
+竞品分析报告</h1>
+<blockquote>
+<p>生成日期：2026-05-29</p>
+</blockquote>
+<h2 id="一竞品概览">一、竞品概览</h2>
+<p>在 GitHub 上搜索到以下主要医学影像查看器竞品：</p>
+<table>
+<colgroup>
+<col style="width: 16%" />
+<col style="width: 18%" />
+<col style="width: 16%" />
+<col style="width: 16%" />
+<col style="width: 32%" />
+</colgroup>
+<thead>
+<tr class="header">
+<th>项目</th>
+<th>Stars</th>
+<th>语言</th>
+<th>架构</th>
+<th>GitHub 地址</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td><strong>OHIF Viewers</strong></td>
+<td>4,183</td>
+<td>TypeScript</td>
+<td>浏览器端 + 扩展系统</td>
+<td><code>ohif/viewers</code></td>
+</tr>
+<tr class="even">
+<td><strong>DWV (DICOM Web Viewer)</strong></td>
+<td>1,819</td>
+<td>JavaScript</td>
+<td>纯客户端零安装</td>
+<td><code>ivmartel/dwv</code></td>
+</tr>
+<tr class="odd">
+<td><strong>Weasis</strong></td>
+<td>1,256</td>
+<td>Java/Kotlin</td>
+<td>桌面应用 + Web</td>
+<td><code>nroduit/Weasis</code></td>
+</tr>
+<tr class="even">
+<td><strong>Cornerstone3D</strong></td>
+<td>1,070</td>
+<td>TypeScript</td>
+<td>WebGL 渲染引擎</td>
+<td><code>cornerstonejs/cornerstone3D</code></td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2 id="二核心差异对比">二、核心差异对比</h2>
+<h3 id="渲染技术">2.1 渲染技术</h3>
+<table>
+<thead>
+<tr class="header">
+<th>能力</th>
+<th>MedVista</th>
+<th>OHIF</th>
+<th>Cornerstone3D</th>
+<th>DWV</th>
+<th>Weasis</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>2D 切片查看</td>
+<td>Canvas 2D</td>
+<td>WebGL</td>
+<td>WebGL</td>
+<td>Canvas 2D</td>
+<td>Java Swing</td>
+</tr>
+<tr class="even">
+<td>3D 体渲染</td>
+<td>无</td>
+<td>有 (MPR/MIP/VR)</td>
+<td>有 (GPU加速)</td>
+<td>无</td>
+<td>有</td>
+</tr>
+<tr class="odd">
+<td>GPU 加速</td>
+<td>无</td>
+<td>有</td>
+<td>有 (WebGL)</td>
+<td>无</td>
+<td>有</td>
+</tr>
+<tr class="even">
+<td>MPR 多平面重建</td>
+<td>无</td>
+<td>有</td>
+<td>有</td>
+<td>有(基础)</td>
+<td>有</td>
+</tr>
+<tr class="odd">
+<td>窗宽窗位实时调节</td>
+<td>支持</td>
+<td>支持</td>
+<td>支持</td>
+<td>支持</td>
+<td>支持</td>
+</tr>
+</tbody>
+</table>
+<p><strong>差距分析</strong>: 本项目使用 Canvas 2D 绘制，OHIF 和
+Cornerstone3D 使用 WebGL 渲染，支持 GPU 加速的 3D
+体渲染（MPR、MIP、VR）。这是最大的技术差距。</p>
+<h3 id="dicom-支持范围">2.2 DICOM 支持范围</h3>
+<table>
+<colgroup>
+<col style="width: 16%" />
+<col style="width: 32%" />
+<col style="width: 8%" />
+<col style="width: 22%" />
+<col style="width: 7%" />
+<col style="width: 11%" />
+</colgroup>
+<thead>
+<tr class="header">
+<th>SOP Class</th>
+<th>MedVista</th>
+<th>OHIF</th>
+<th>Cornerstone3D</th>
+<th>DWV</th>
+<th>Weasis</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>CT/MR/PT/NM 图像</td>
+<td>有</td>
+<td>有</td>
+<td>有</td>
+<td>有</td>
+<td>有</td>
+</tr>
+<tr class="even">
+<td>RT Structure</td>
+<td>有</td>
+<td>有 (扩展)</td>
+<td>有</td>
+<td>无</td>
+<td>有</td>
+</tr>
+<tr class="odd">
+<td>RT Dose</td>
+<td>有</td>
+<td>有 (扩展)</td>
+<td>有</td>
+<td>无</td>
+<td>有</td>
+</tr>
+<tr class="even">
+<td>RT Plan</td>
+<td>有 (元数据)</td>
+<td>有 (扩展)</td>
+<td>有</td>
+<td>无</td>
+<td>有</td>
+</tr>
+<tr class="odd">
+<td>DICOM Segmentation</td>
+<td>无</td>
+<td>有</td>
+<td>有</td>
+<td>无</td>
+<td>有</td>
+</tr>
+<tr class="even">
+<td>SR (结构化报告)</td>
+<td>无</td>
+<td>有</td>
+<td>有</td>
+<td>无</td>
+<td>有</td>
+</tr>
+<tr class="odd">
+<td>ECG</td>
+<td>无</td>
+<td>无</td>
+<td>无</td>
+<td>无</td>
+<td>有</td>
+</tr>
+<tr class="even">
+<td>4D 动态序列</td>
+<td>无</td>
+<td>有</td>
+<td>有</td>
+<td>无</td>
+<td>有</td>
+</tr>
+<tr class="odd">
+<td>多帧图像</td>
+<td>无</td>
+<td>有</td>
+<td>有</td>
+<td>有</td>
+<td>有</td>
+</tr>
+</tbody>
+</table>
+<p><strong>差距分析</strong>: 本项目在 RT
+支持方面已覆盖结构和剂量，但缺少 DICOM Segmentation（分割掩码）和
+SR（结构化报告）支持。</p>
+<h3 id="系统架构">2.3 系统架构</h3>
+<table>
+<thead>
+<tr class="header">
+<th>特性</th>
+<th>MedVista</th>
+<th>OHIF</th>
+<th>DWV</th>
+<th>Weasis</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>架构模式</td>
+<td>前后端分离</td>
+<td>前端插件化</td>
+<td>纯前端</td>
+<td>客户端插件化</td>
+</tr>
+<tr class="even">
+<td>渲染引擎</td>
+<td>自建 Canvas</td>
+<td>Cornerstone3D</td>
+<td>自建 Canvas</td>
+<td>Java 3D</td>
+</tr>
+<tr class="odd">
+<td>扩展机制</td>
+<td>无</td>
+<td>插件/模式系统</td>
+<td>npm 包</td>
+<td>OSGi 插件</td>
+</tr>
+<tr class="even">
+<td>数据存储</td>
+<td>服务端 Session</td>
+<td>DICOMweb/PACS</td>
+<td>纯本地</td>
+<td>本地/DICOMweb</td>
+</tr>
+<tr class="odd">
+<td>协议支持</td>
+<td>HTTP 上传</td>
+<td>DICOMweb/WADO</td>
+<td>HTTP 上传</td>
+<td>DICOMweb + DIMSE</td>
+</tr>
+<tr class="even">
+<td>PACS 集成</td>
+<td>无</td>
+<td>有</td>
+<td>无</td>
+<td>有</td>
+</tr>
+<tr class="odd">
+<td>认证系统</td>
+<td>无</td>
+<td>OpenID Connect</td>
+<td>无</td>
+<td>OAuth 2.0</td>
+</tr>
+<tr class="even">
+<td>国际化</td>
+<td>中英双语</td>
+<td>20+ 语言</td>
+<td>多语言</td>
+<td>20+ 语言</td>
+</tr>
+<tr class="odd">
+<td>FDA 合规</td>
+<td>无</td>
+<td>有 (部分产品)</td>
+<td>无</td>
+<td>无</td>
+</tr>
+</tbody>
+</table>
+<p><strong>差距分析</strong>: OHIF
+采用插件化架构，可灵活扩展；本项目是单体应用，功能扩展受限。本项目没有
+PACS 集成能力，需要用户手动上传文件。</p>
+<h3 id="部署与分发">2.4 部署与分发</h3>
+<table>
+<colgroup>
+<col style="width: 12%" />
+<col style="width: 46%" />
+<col style="width: 12%" />
+<col style="width: 10%" />
+<col style="width: 17%" />
+</colgroup>
+<thead>
+<tr class="header">
+<th>特性</th>
+<th>MedVista</th>
+<th>OHIF</th>
+<th>DWV</th>
+<th>Weasis</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>部署方式</td>
+<td>Docker / 本地</td>
+<td>Docker / 静态托管</td>
+<td>npm 嵌入</td>
+<td>安装包 / Web</td>
+</tr>
+<tr class="even">
+<td>前端构建</td>
+<td>Vue 3 + Vite</td>
+<td>React + Vite</td>
+<td>纯 JS</td>
+<td>Java / WAB</td>
+</tr>
+<tr class="odd">
+<td>后端依赖</td>
+<td>Python FastAPI</td>
+<td>无 (纯前端) 或有</td>
+<td>无</td>
+<td>Java Runtime</td>
+</tr>
+<tr class="even">
+<td>安装复杂度</td>
+<td>中等</td>
+<td>低</td>
+<td>极低</td>
+<td>高</td>
+</tr>
+<tr class="odd">
+<td>嵌入性</td>
+<td>低</td>
+<td>高 (可嵌入 React)</td>
+<td>高 (npm)</td>
+<td>中等</td>
+</tr>
+</tbody>
+</table>
+<p><strong>差距分析</strong>: DWV 和 OHIF
+可以纯前端运行，不需要后端服务器。本项目强依赖 Python 后端处理 DICOM
+解析和图像生成。</p>
+<hr />
+<h2 id="三各竞品详细分析">三、各竞品详细分析</h2>
+<h3 id="ohif-viewers-4183">3.1 OHIF Viewers (4,183★)</h3>
+<p><strong>优势</strong>: -
+扩展/模式（Extension/Mode）架构，功能按需加载 - 底层使用
+Cornerstone3D，GPU 加速渲染 - DICOMweb 原生支持，可直接连接 PACS -
+2D/3D/MPR/MIP/VR 完整查看能力 - RT 结构/剂量通过扩展支持 - 支持 DICOM
+Segmentation、4D 体积 - 测量工具（长度、角度、ROI 统计） - OpenID
+Connect 认证 - FDA-cleared 产品（Mirth CloudConnect）</p>
+<p><strong>劣势</strong>: - React 技术栈，与本项目 Vue 不兼容 -
+纯前端架构，不提供 NIfTI 转换功能 - RT 支持需要安装额外扩展 -
+配置复杂度高</p>
+<h3 id="dwv-1819">3.2 DWV (1,819★)</h3>
+<p><strong>优势</strong>: - 零安装、零依赖的纯 JavaScript 库 - npm
+包可嵌入任何前端项目 - 基础 MPR 支持 - 支持 DICOMweb 加载 -
+轻量级，适合嵌入式场景</p>
+<p><strong>劣势</strong>: - 不支持 RT/SR/ECG 等高级 SOP Class - 无 3D
+体渲染 - 无 GPU 加速 - 无 PACS 集成 - 无认证系统</p>
+<h3 id="weasis-1256">3.3 Weasis (1,256★)</h3>
+<p><strong>优势</strong>: - 全面的 DICOM SOP Class 支持（包括 ECG） -
+完整的 RT 支持（结构、剂量、DVH 曲线） - 3D 体积渲染 - DICOMweb + DIMSE
+双协议支持 - OSGi 插件系统，高度可扩展 - 20+ 语言国际化 - OAuth 2.0
+认证</p>
+<p><strong>劣势</strong>: - Java 桌面应用，安装复杂 - 前端体验不如 Web
+原生应用 - 社区活跃度不如 OHIF</p>
+<h3 id="cornerstone3d-1070">3.4 Cornerstone3D (1,070★)</h3>
+<p><strong>优势</strong>: - WebGL 渲染引擎，GPU 加速 - 被 OHIF
+采用为底层渲染库 - WebAssembly DICOM 解码 - 分割掩码叠加显示 - AI
+集成接口 - 高性能大体积数据处理</p>
+<p><strong>劣势</strong>: - 纯渲染引擎，非完整应用 - 需要配合 UI
+框架使用 - 无后端功能（无转换、无 PACS 代理）</p>
+<hr />
+<h2 id="四改进建议按优先级排序">四、改进建议（按优先级排序）</h2>
+<h3 id="高优先级核心竞争力提升">高优先级（核心竞争力提升）</h3>
+<h4 id="引入-cornerstone3d-作为渲染引擎">4.1 引入 Cornerstone3D
+作为渲染引擎</h4>
+<p><strong>当前问题</strong>: Canvas 2D 渲染无法提供 3D
+体渲染能力，性能受限。</p>
+<p><strong>建议方案</strong>: - 替换自建的 <code>image_builder.py</code>
++ Canvas 渲染为 Cornerstone3D - 实现
+MPR（多平面重建）、MIP（最大密度投影）、VR（体渲染） - 利用 WebGL GPU
+加速提升大体积数据渲染性能</p>
+<p><strong>预期收益</strong>: 获得与 OHIF
+同级别的渲染能力，支持放疗计划的 3D 可视化。</p>
+<p><strong>工作量</strong>: 中等 —
+需要替换前端渲染逻辑，后端保留切片数据生成。</p>
+<h4 id="支持-dicomweb-协议wado-rs-qido-rs-stow-rs">4.2 支持 DICOMweb
+协议（WADO-RS / QIDO-RS / STOW-RS）</h4>
+<p><strong>当前问题</strong>: 用户必须手动上传 DICOM 文件，无法直接连接
+PACS。</p>
+<p><strong>建议方案</strong>: - 实现 WADO-RS（Web Access to DICOM
+Objects）用于检索影像 - 实现 QIDO-RS（Query based on ID for DICOM
+Objects）用于查询 - 实现 STOW-RS（Store over the Web）用于存储 -
+可使用现有 DICOMweb 客户端库（如 <code>dicom-web-client</code>）</p>
+<p><strong>预期收益</strong>: 允许直接从 PACS
+服务器加载影像，大幅扩展使用场景。</p>
+<p><strong>工作量</strong>: 中等 — 新增 DICOMweb 数据源，复用现有
+session 管理。</p>
+<h4 id="添加-dicom-segmentation-支持">4.3 添加 DICOM Segmentation
+支持</h4>
+<p><strong>当前问题</strong>: 放疗中 SEG
+文件越来越常见（自动分割结果），当前不支持。</p>
+<p><strong>建议方案</strong>: - 集成 Cornerstone3D 的 SEG 解码器 -
+在前端实现分割掩码的叠加显示 - 支持多标签分割（不同 ROI 不同颜色）</p>
+<p><strong>预期收益</strong>:
+覆盖放疗工作流中的自动分割结果查看需求。</p>
+<p><strong>工作量</strong>: 低 — Cornerstone3D 已有现成解码库。</p>
+<h3 id="中优先级功能完善">中优先级（功能完善）</h3>
+<h4 id="插件化架构">4.4 插件化架构</h4>
+<p><strong>当前问题</strong>:
+所有功能硬编码在路由和服务中，社区难以贡献扩展。</p>
+<p><strong>建议方案</strong>: - 参考 OHIF 的 Mode/Extension 模式 - 将 RT
+查看、剂量查看、NIfTI 转换等作为可选插件 -
+定义标准的插件接口（数据加载、渲染、工具栏）</p>
+<p><strong>预期收益</strong>:
+社区可贡献扩展，降低核心复杂度，提升可维护性。</p>
+<p><strong>工作量</strong>: 高 — 需要重构前端和后端的模块组织。</p>
+<h4 id="测量和标注工具">4.5 测量和标注工具</h4>
+<p><strong>当前问题</strong>: 只有 RT 结构叠加，没有交互式测量功能。</p>
+<p><strong>建议方案</strong>: - 长度测量（两点距离） -
+角度测量（三点角度） - ROI 统计（平均值、最大值、标准差） -
+箭头标注和文字标注 - 测量结果导出</p>
+<p><strong>预期收益</strong>: 满足放疗科医生的日常测量需求。</p>
+<p><strong>工作量</strong>: 中等 — 需要前端交互层 + 后端统计计算。</p>
+<h4 id="d-动态序列支持">4.6 4D 动态序列支持</h4>
+<p><strong>当前问题</strong>: 4D-CT
+用于呼吸运动管理，当前不支持时间维度。</p>
+<p><strong>建议方案</strong>: - 数据层支持多时间点体积数据 -
+前端添加时间轴滑块和播放控件 - 支持关键帧跳转</p>
+<p><strong>预期收益</strong>: 覆盖 4D-CT 放疗模拟的需求。</p>
+<p><strong>工作量</strong>: 中等 — 数据层 + UI 时间轴组件。</p>
+<h3 id="低优先级锦上添花">低优先级（锦上添花）</h3>
+<h4 id="dicom-anonymization-增强">4.7 DICOM Anonymization 增强</h4>
+<p><strong>当前建议</strong>: 当前 anonymize
+功能已有，可增加更细粒度的控制（选择性保留字段），参考 DICOM 标准的
+Profile 机制。</p>
+<p><strong>工作量</strong>: 低</p>
+<h4 id="前端纯客户端模式">4.8 前端纯客户端模式</h4>
+<p><strong>当前建议</strong>: 参考
+DWV，支持部分功能（查看、测量）在纯前端运行，仅在需要 NIfTI
+转换等重计算时才连接后端。可考虑将部分 Python 解析逻辑编译为
+WebAssembly。</p>
+<p><strong>工作量</strong>: 高</p>
+<h4 id="openid-connect-oauth-2.0-认证">4.9 OpenID Connect / OAuth 2.0
+认证</h4>
+<p><strong>当前建议</strong>: 医疗场景通常需要身份认证和审计。可集成
+Keycloak 或其他 IdP 实现 SSO 登录。</p>
+<p><strong>工作量</strong>: 中等</p>
+<h4 id="国际化扩展">4.10 国际化扩展</h4>
+<p><strong>当前建议</strong>:
+当前支持中英双语，可扩展到日韩法德等语言。i18n
+框架已就绪，主要工作是翻译内容。</p>
+<p><strong>工作量</strong>: 低</p>
+<hr />
+<h2 id="五项目独特优势">五、项目独特优势</h2>
+<p>在分析竞品后，本项目也有以下差异化优势：</p>
+<ol type="1">
+<li><strong>NIfTI 转换 + SSE 实时进度</strong> — 竞品大多不提供
+DICOM→NIfTI 的转换功能，更没有 SSE 流式进度推送</li>
+<li><strong>RT 支持开箱即用</strong> — OHIF 的 RT
+支持需要安装扩展，本项目原生支持 RT Structure + RT Dose</li>
+<li><strong>轻量部署</strong> — Docker 一键部署，比 Weasis 的 Java
+安装简单得多</li>
+<li><strong>客户端预览</strong> — 上传前用 dicom-parser
+做客户端预览，竞品中很少有这个功能</li>
+<li><strong>二进制切片传输</strong> — 比 JSON 传输小
+60%，性能优化亮点</li>
+<li><strong>Vue 3 技术栈</strong> —
+轻量、响应式，适合中小型团队快速二次开发</li>
+</ol>
+<hr />
+<h2 id="六总结">六、总结</h2>
+<table>
+<thead>
+<tr class="header">
+<th>维度</th>
+<th>当前水平</th>
+<th>目标水平</th>
+<th>关键改进</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>渲染能力</td>
+<td>Canvas 2D</td>
+<td>WebGL 3D</td>
+<td>引入 Cornerstone3D</td>
+</tr>
+<tr class="even">
+<td>数据接入</td>
+<td>手动上传</td>
+<td>PACS 直连</td>
+<td>DICOMweb 协议</td>
+</tr>
+<tr class="odd">
+<td>SOP Class</td>
+<td>CT/MR + RT</td>
+<td>全覆盖</td>
+<td>+SEG +SR</td>
+</tr>
+<tr class="even">
+<td>架构扩展性</td>
+<td>单体</td>
+<td>插件化</td>
+<td>Extension 机制</td>
+</tr>
+<tr class="odd">
+<td>交互工具</td>
+<td>无</td>
+<td>测量标注</td>
+<td>交互式工具集</td>
+</tr>
+<tr class="even">
+<td>部署复杂度</td>
+<td>中等</td>
+<td>低</td>
+<td>纯前端模式</td>
+</tr>
+</tbody>
+</table>
+<p><strong>最高 ROI 改进路径</strong>: 引入 Cornerstone3D 替换自建渲染层
+→ 添加 DICOMweb 支持 → 集成 SEG
+解码器。这三步将使项目从”上传查看工具”升级为”可连接 PACS
+的专业影像工作站”。</p>
+</body>
+</html>

@@ -138,7 +138,8 @@ import {
   HomeIcon, UserGroupIcon, CubeTransparentIcon,
   ArrowUpTrayIcon, CogIcon, DocumentTextIcon,
   BeakerIcon, TableCellsIcon, WrenchScrewdriverIcon,
-  ArrowsRightLeftIcon
+  ArrowsRightLeftIcon, GlobeAltIcon, ShieldCheckIcon,
+  WifiIcon
 } from '@heroicons/vue/24/outline'
 
 interface Props {
@@ -161,6 +162,7 @@ const dataNavItems = computed(() => [
   { path: '/viewer', label: t('sidebar.nav.viewer'), icon: CubeTransparentIcon },
   { path: '/data-table', label: t('sidebar.nav.dataTable'), icon: TableCellsIcon },
   { path: '/plans', label: t('sidebar.nav.plans'), icon: BeakerIcon },
+  { path: '/pacs', label: t('sidebar.nav.pacs'), icon: GlobeAltIcon },
 ])
 
 const toolNavItems = computed(() => [
@@ -168,6 +170,8 @@ const toolNavItems = computed(() => [
   { path: '/metadata', label: t('sidebar.nav.metadata'), icon: DocumentTextIcon },
   { path: '/processing', label: t('sidebar.nav.postProcessing'), icon: WrenchScrewdriverIcon },
   { path: '/export', label: t('sidebar.nav.export'), icon: ArrowUpTrayIcon },
+  { path: '/anonymization', label: t('sidebar.nav.anonymization'), icon: ShieldCheckIcon },
+  { path: '/offline', label: t('sidebar.nav.offline'), icon: WifiIcon },
   { path: '/settings', label: t('sidebar.nav.settings'), icon: CogIcon },
 ])
 </script>

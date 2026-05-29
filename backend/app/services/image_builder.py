@@ -165,3 +165,21 @@ class ImageBuilder:
         if not session:
             return None
         return self._build_volume(session, patient_id, series_uid)
+
+    def get_volume_binary(self, session_id: str, patient_id: str, series_uid: Optional[str] = None) -> Optional[dict]:
+        """Return raw 3D volume as bytes with metadata headers for Cornerstone3D."""
+        from app.services.dicom_service import dicom_service
+        session = dicom_service.sessions.get(session_id)
+        if not session:
+            return None
+        volume = self._build_volume(session, patient_id, series_uid)
+        if volume is None:
+            return None
+        arr = volume["array"]
+        return {
+            "data": arr.tobytes(),
+            "shape": list(arr.shape),
+            "spacing": volume["spacing"],
+            "origin": volume["origin"],
+            "dtype": str(arr.dtype),
+        }

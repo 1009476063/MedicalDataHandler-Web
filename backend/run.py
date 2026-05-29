@@ -1,4 +1,4 @@
-"""Entry point for the MedicalDataHandler backend.
+"""Entry point for the MedVista backend.
 
 Usage:
     python run.py                  # single worker (default, safe for in-memory sessions)
@@ -9,7 +9,7 @@ import uvicorn
 
 
 def main():
-    parser = argparse.ArgumentParser(description="MedicalDataHandler backend")
+    parser = argparse.ArgumentParser(description="MedVista backend")
     parser.add_argument("--host", default="0.0.0.0")
     parser.add_argument("--port", type=int, default=8000)
     parser.add_argument("--workers", type=int, default=1,

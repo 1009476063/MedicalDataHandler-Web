@@ -1,5 +1,5 @@
 {
-  "name": "medical-data-handler-web",
+  "name": "medvista",
   "version": "1.0.0",
   "private": true,
   "type": "module",
@@ -11,10 +11,10 @@
   "dependencies": {
     "@heroicons/vue": "^2.1.0",
     "axios": "^1.7.0",
-    "cornerstone-core": "^2.6.1",
-    "cornerstone-math": "^0.1.10",
-    "cornerstone-tools": "^6.0.10",
-    "cornerstone-wado-image-loader": "^4.13.0",
+    "@cornerstonejs/core": "^4.22.13",
+    "@cornerstonejs/tools": "^4.22.13",
+    "@cornerstonejs/dicom-image-loader": "^4.22.13",
+    "@cornerstonejs/streaming-image-volume-loader": "^1.86.1",
     "dicom-parser": "^1.8.21",
     "pinia": "^2.2.0",
     "vue": "^3.4.0",

@@ -2,9 +2,9 @@
   <a href="./README.md">English</a> | <b>中文</b>
 </p>
 
-# MedicalDataHandler Web
+# MedVista
 
-基于 Web 的放射治疗医学影像查看与处理平台。支持 DICOM、NIfTI、NRRD、MHA 格式，具备多平面重建、结构/剂量叠加和 RT 计划分析功能。
+基于 Web 的放射治疗医学影像查看与处理平台。支持 DICOM、NIfTI、NRRD、MHA 格式，具备 WebGL 3D 渲染、结构/剂量叠加、RT 计划分析和 PACS 连接功能。
 
 **在线体验：** https://medical.1661688.xyz
 
@@ -13,16 +13,32 @@
 ![Python](https://img.shields.io/badge/Python-3.10+-3776ab?logo=python)
 ![TypeScript](https://img.shields.io/badge/TypeScript-5-3178c6?logo=typescript)
 ![Tailwind CSS](https://img.shields.io/badge/Tailwind-3.4-06b6d4?logo=tailwindcss)
+![Cornerstone3D](https://img.shields.io/badge/Cornerstone3D-4.22-ff6b35)
 
 ## 功能特性
 
-### 影像查看器
-- **多平面重建 (MPR)** — 轴位、矢状位、冠状位同步导航
-- **同步十字线** — 跨平面定位，精确导航
-- **窗宽/窗位预设** — CT、肺、骨、软组织、脑、硬膜下等预设
+### WebGL 3D 查看器（Cornerstone3D）
+- **GPU 加速渲染** — 基于 Cornerstone3D 的 WebGL 渲染，实时 MPR（轴位、矢状位、冠状位）
+- **同步十字线** — 使用 Cornerstone3D `CrosshairsTool` 跨平面定位
+- **窗宽/窗位预设** — CT、肺、骨、软组织、脑、硬膜下等预设，支持交互调整
 - **体素检查** — 光标位置实时 HU/值读数
 - **DICOM 标签查看器** — 可搜索、可过滤的标签查看器
 - **影像控制** — 旋转、翻转、缩放/平移速度、方向标签
+
+### 测量与标注工具
+- **长度工具** — mm 距离测量
+- **角度工具** — 角度测量（度）
+- **ROI 统计** — 矩形/椭圆 ROI，显示平均值、标准差、最小值、最大值 HU
+- **探针工具** — 点值检查
+- **箭头标注** — 图像文字标注
+- **测量导出** — CSV 导出所有测量数据
+- **持久化标注** — 按检查保存/加载标注
+
+### DICOM 分割（SEG）支持
+- **SEG 对象解析** — 解析 DICOM SEG 对象并提取二进制掩模
+- **分割叠加** — 在体数据上显示分割掩模叠加
+- **逐段控制** — 每个分割区域独立的颜色、可见性和透明度
+- **分割面板** — 侧边栏分割管理面板
 
 ### 结构与剂量叠加
 - **RT 结构叠加** — 彩色轮廓渲染，可调节透明度和线宽
@@ -31,32 +47,58 @@
 - **剂量叠加** — 色彩映射剂量分布可视化
 - **剂量合并** — 将多个剂量分布合并为单一剂量体
 
+### 4D 动态序列支持
+- **时间序列数据** — 支持 4D-CT、心脏 MRI、动态增强序列
+- **时间滑块** — 播放/暂停、帧率控制、逐步导航
+- **自动检测** — 从 DICOM TemporalPositionIdentifier 检测时间位置
+
 ### RT 计划
 - **计划查看器** — 射束摘要，包含能量、机架角度和权重
 - **分次显示** — 分次数、每次剂量、总剂量
+
+### DICOMweb / PACS 连接
+- **QIDO-RS 查询** — 搜索远程 PACS 上的研究/序列/实例
+- **WADO-RS 检索** — 从 PACS 获取 DICOM 对象
+- **STOW-RS 存储** — 推送 DICOM 对象到 PACS
+- **多服务器** — 同时管理多个 PACS 连接
+- **PACS 浏览器** — 树形浏览研究/序列/实例
+
+### DICOM 匿名化
+- **配置文件** — 预定义配置：研究、临床试验、完全去标识化
+- **自定义规则** — 逐标签匿名化规则（移除、哈希、替换、偏移）
+- **日期偏移** — 可配置的日期偏移，用于时间匿名化
+- **预览模式** — 应用前预览匿名化变更
+- **审计日志** — 追踪所有匿名化操作
 
 ### 后处理
 - **HU-RED 转换** — CT Hounsfield 单位转相对电子密度，450+ 标定表
 - **TG-263 自动重命名** — 批量将结构重命名为 TG-263 标准命名
 - **剂量合并** — 将多个剂量分布合并为单一剂量体
-- **NRRD 导出** — 将 CT (HU) 和 RED 体导出为 NRRD 文件，用于 AI/ML 管线
+- **NRRD 导出** — 将 CT (HU) 和 RED 体导出为 NRRD 文件
 
 ### 转换器与序列分析
-- **DICOM 转 NIfTI** — 将 DICOM 序列转换为 NIfTI 格式，支持 SSE 实时进度
-- **智能序列分析** — 基于高级 DICOM 标签（DiffusionBValue、TemporalPositionIdentifier、ContrastBolusAgent、ImageType 等）自动分类为 ADC、DWI、DCE、MG、US 类型
-- **DCE 期相检测** — 按时间位置或采集时间对动态增强序列分组
-- **DWI b 值分析** — 从切片几何推断 b 值数量（单/双 b 值）
-- **智能序列选择** — 基于文件数、几何匹配和临床规则自动选择各类型最佳序列
-- **DICOM 匿名化** — 从 DICOM 文件中去除患者 PHI（个人身份信息）
+- **DICOM 转 NIfTI** — 支持 SSE 实时进度的格式转换
+- **智能序列分析** — 自动分类为 ADC、DWI、DCE、MG、US 类型
+- **DCE 期相检测** — 按时间位置或采集时间分组
+- **智能序列选择** — 基于文件数、几何匹配自动选择最佳序列
+
+### 纯客户端模式
+- **离线 DICOM 查看器** — 使用 `dicom-parser` 在浏览器端解析和查看 DICOM
+- **无需后端** — 无需运行后端服务器
+- **拖拽上传** — 直接拖拽 DICOM 文件到查看器
+
+### 认证（OIDC）
+- **OpenID Connect** — 支持任何 OIDC 提供商（Keycloak、Auth0 等）
+- **JWT 令牌** — 安全的基于令牌的会话管理
+- **路由保护** — 除登录/回调外所有路由的认证守卫
+- **可配置** — 通过环境变量启用/禁用
 
 ### 可扩展性与内存管理
-- **客户端元数据预览** — 使用 `dicom-parser` 在浏览器端解析 DICOM 元数据（无需上传），即时显示患者/研究/模态分布
-- **二进制切片传输** — 切片数据以原始字节通过 `/slice-binary` 传输（比 JSON 小约 60%），元数据置于 HTTP 头
-- **磁盘像素存储** — 上传后立即保存像素数据为 `.npy` 文件，内存中仅保留元数据
-- **资源限制** — 单会话：10,000 文件，最大 2 GB。服务器全局：最多 2 个并发上传，2 个并发转换（满时返回 HTTP 429）
-- **磁盘空间保护** — 服务器剩余空间 < 500 MB 或上传空间不足时拒绝上传
-- **会话清理** — 15 分钟 TTL + 2 分钟清理周期 + 显式 DELETE 端点即时清理
-- **优化转换** — 预分配体数组 + 按需加载像素，降低 NIfTI 转换峰值内存
+- **客户端元数据预览** — 使用 `dicom-parser` 在浏览器端解析 DICOM 元数据
+- **二进制切片传输** — 原始字节传输（比 JSON 小约 60%）
+- **磁盘像素存储** — 上传后立即保存像素数据为 `.npy` 文件
+- **资源限制** — 单会话：10,000 文件，最大 2 GB
+- **会话清理** — 15 分钟 TTL + 2 分钟清理周期
 
 ### 多格式支持
 | 格式 | 扩展名 | 读取库 |
@@ -76,48 +118,72 @@
 ## 架构
 
 ```
-MedicalDataHandler-Web/
-├── backend/                  # FastAPI + Python
+MedVista/
+├── backend/                      # FastAPI + Python
 │   ├── app/
-│   │   ├── main.py          # 应用入口、CORS、路由
-│   │   ├── routers/         # API 端点
-│   │   │   ├── dicom.py     # DICOM 上传、切片（JSON + 二进制）、结构、剂量、计划、ROI 边界、会话清理
-│   │   │   ├── converter.py # DICOM 转 NIfTI（扫描、流式转换、匿名化、下载、队列状态）
-│   │   │   ├── analysis.py  # 序列分析（ADC/DWI/DCE/MG/US 分类）
-│   │   │   ├── export.py    # NRRD 体导出
-│   │   │   ├── postprocessing.py  # HU-RED、剂量合并、TG-263 重命名
-│   │   │   ├── medical_formats.py # NIfTI/NRRD/MHA 上传
-│   │   │   ├── config.py    # TG-263 配置、窗位预设
-│   │   │   └── logging.py   # 活动日志
-│   │   ├── services/        # 业务逻辑
-│   │   │   ├── dicom_service.py    # DICOM 会话管理、磁盘像素存储、速率限制（信号量）、磁盘空间保护
-│   │   │   ├── dicom_converter_service.py # DICOM 转 NIfTI（按需像素加载、预分配体）
-│   │   │   ├── sequence_analysis_service.py # 智能序列分类与选择
-│   │   │   ├── image_builder.py    # 体构建与切片提取（磁盘像素加载）
-│   │   │   ├── rt_struct_builder.py # RT 结构轮廓处理
-│   │   │   ├── rt_dose_builder.py  # RT 剂量网格处理
-│   │   │   ├── nifti_service.py    # NIfTI/NRRD/MHA 加载器
-│   │   │   └── log_service.py      # 活动日志
-│   │   └── utils/
-│   ├── config_files/        # TG-263 命名、器官匹配、窗位预设
+│   │   ├── main.py               # 应用入口、CORS、路由
+│   │   ├── routers/
+│   │   │   ├── dicom.py          # DICOM 上传、切片、结构、剂量、计划、volume-binary
+│   │   │   ├── auth.py           # OIDC 登录、JWT、令牌刷新
+│   │   │   ├── dicomweb.py       # PACS 连接（QIDO/WADO/STOW-RS）
+│   │   │   ├── seg.py            # DICOM 分割对象
+│   │   │   ├── four_d.py         # 4D 时间序列数据
+│   │   │   ├── annotations.py    # 测量/标注持久化
+│   │   │   ├── anonymization.py  # DICOM 匿名化配置
+│   │   │   ├── converter.py      # DICOM 转 NIfTI（SSE 进度）
+│   │   │   ├── analysis.py       # 序列分析
+│   │   │   ├── export.py         # NRRD 体导出
+│   │   │   ├── postprocessing.py # HU-RED、剂量合并、TG-263
+│   │   │   ├── medical_formats.py# NIfTI/NRRD/MHA 上传
+│   │   │   ├── config.py         # TG-263 配置、窗位预设
+│   │   │   └── logging.py        # 活动日志
+│   │   ├── services/
+│   │   │   ├── dicom_service.py          # 会话管理、磁盘存储
+│   │   │   ├── auth_service.py           # JWT、OIDC 发现、JWKS
+│   │   │   ├── dicomweb_service.py       # DICOMweb HTTP 客户端
+│   │   │   ├── seg_service.py            # SEG 对象解析
+│   │   │   ├── four_d_service.py         # 4D 体构建
+│   │   │   ├── anonymization_service.py  # 匿名化引擎
+│   │   │   ├── image_builder.py          # 体构建与切片
+│   │   │   ├── rt_struct_builder.py      # RT 结构轮廓
+│   │   │   ├── rt_dose_builder.py        # RT 剂量网格
+│   │   │   ├── dicom_converter_service.py# DICOM 转 NIfTI
+│   │   │   ├── sequence_analysis_service.py
+│   │   │   ├── nifti_service.py          # NIfTI/NRRD/MHA 加载器
+│   │   │   └── log_service.py
+│   │   └── middleware/
+│   │       └── auth.py           # FastAPI 认证依赖
+│   ├── config_files/             # TG-263 命名、器官匹配、预设
 │   ├── requirements.txt
-│   └── run.py               # Uvicorn 启动器
-├── frontend/                 # Vue 3 + TypeScript
+│   └── run.py
+├── frontend/                     # Vue 3 + TypeScript + Cornerstone3D
 │   ├── src/
-│   │   ├── views/           # 9 个页面视图
-│   │   ├── components/      # 可复用组件
-│   │   │   ├── layout/      # AppLayout、AppSidebar、AppHeader
-│   │   │   ├── viewer/      # ImageSliceViewer（基于 Canvas）
-│   │   │   └── common/      # DataTable、StatusBadge、SequenceCard 等
-│   │   ├── stores/          # Pinia 状态管理（getSliceBinary、cleanupSession）
-│   │   ├── utils/           # 客户端 DICOM 解析器（dicomClientParser.ts）
-│   │   ├── i18n/            # 英文 + 中文翻译
-│   │   ├── router/          # Vue Router 懒加载
-│   │   └── types/           # TypeScript 接口
-│   ├── server.cjs           # 生产代理（提供构建产物 + 代理 API）
+│   │   ├── views/                # 15 个页面视图
+│   │   ├── components/
+│   │   │   ├── layout/           # AppLayout、AppSidebar、AppHeader、AuthGuard
+│   │   │   ├── viewer/           # Cornerstone3DViewer、MeasurementToolbar/Panel、
+│   │   │   │                     # SegmentationPanel、TimeSlider
+│   │   │   ├── pacs/             # PacsConnectionDialog、PacsBrowser
+│   │   │   └── common/           # DataTable、StatusBadge 等
+│   │   ├── composables/
+│   │   │   ├── useCornerstone3D  # Cornerstone3D 引擎生命周期
+│   │   │   ├── useTools          # 测量工具管理
+│   │   │   ├── useSegmentation   # SEG 叠加状态
+│   │   │   ├── useDicomweb       # PACS 连接状态
+│   │   │   ├── useFourD          # 4D 时间序列状态
+│   │   │   ├── useAnonymization  # 匿名化状态
+│   │   │   ├── useAuth           # OIDC 登录/令牌管理
+│   │   │   └── useClientMode     # 后端可用性检测
+│   │   ├── utils/
+│   │   │   ├── cornerstoneVolumeLoader.ts  # 自定义体积加载器
+│   │   │   └── clientDicomLoader.ts        # 客户端 DICOM 解析器
+│   │   ├── stores/               # Pinia 状态管理
+│   │   ├── i18n/                 # 英文 + 中文翻译
+│   │   ├── router/               # Vue Router + 认证守卫
+│   │   └── types/                # TypeScript 接口
 │   ├── tailwind.config.js
 │   └── vite.config.ts
-└── test-data/               # 测试用 DICOM 样本文件
+└── docs/                         # 竞品分析
 ```
 
 ## 快速开始
@@ -163,31 +229,50 @@ node server.cjs
 
 前端运行在 `http://localhost:3000`（生产代理）
 
+### 认证（可选）
+
+```bash
+# 设置以下环境变量以启用 OIDC 认证
+export OIDC_ISSUER=https://your-oidc-provider.com
+export JWT_SECRET=your-strong-random-secret
+export CORS_ORIGINS=http://localhost:5173,http://localhost:3000
+```
+
 ### API 端点
 
 | 方法 | 端点 | 说明 |
 |------|------|------|
 | POST | `/api/dicom/upload` | 上传 DICOM 文件 |
-| POST | `/api/upload/medical` | 上传 NIfTI/NRRD/MHA 文件 |
-| GET | `/api/dicom/patients/{session}` | 获取患者列表 |
-| POST | `/api/dicom/slice` | 获取影像切片 |
+| POST | `/api/dicom/volume-binary` | 获取原始 3D 体积（用于 Cornerstone3D） |
+| POST | `/api/dicom/slice` | 获取影像切片（JSON） |
 | POST | `/api/dicom/slice-binary` | 获取影像切片（二进制，小约 60%） |
 | DELETE | `/api/dicom/session/{session_id}` | 显式会话清理 |
+| GET | `/api/dicom/patients/{session}` | 获取患者列表 |
 | GET | `/api/dicom/structs/{session}/{patient}` | 获取 RT 结构列表 |
-| GET | `/api/dicom/struct-mask/{session}/{patient}/{key}/{slice}` | 获取结构掩模 |
-| GET | `/api/dicom/roi-bounds/{session}/{patient}/{key}` | 获取 ROI 边界框 |
 | GET | `/api/dicom/dose/{session}/{patient}/{uid}/{slice}` | 获取剂量切片 |
 | GET | `/api/dicom/plans/{session}/{patient}` | 获取 RT 计划 |
+| POST | `/api/seg/mask` | 获取 SEG 二进制掩模 |
+| POST | `/api/seg/volume` | 获取 SEG 体积数据 |
+| GET | `/api/4d/info` | 获取 4D 序列信息 |
+| POST | `/api/4d/volume` | 获取指定时间点的 4D 体积 |
+| POST | `/api/dicomweb/connect` | 连接 PACS 服务器 |
+| GET | `/api/dicomweb/studies` | 搜索 PACS 上的研究 |
+| GET | `/api/dicomweb/studies/{uid}/retrieve` | 从 PACS 检索研究 |
+| POST | `/api/annotations/save` | 保存标注 |
+| GET | `/api/annotations/{session}` | 加载标注 |
+| POST | `/api/anonymization/apply` | 应用匿名化 |
+| GET | `/api/anonymization/profiles` | 获取匿名化配置列表 |
 | POST | `/api/converter/scan` | 扫描患者序列 |
-| POST | `/api/converter/convert-stream` | DICOM 转 NIfTI（SSE 进度） |
-| GET | `/api/converter/queue-status` | 服务器队列状态 |
-| POST | `/api/converter/anonymize` | 匿名化 DICOM 文件 |
-| GET | `/api/converter/download/{session}/{filename}` | 下载转换文件 |
-| POST | `/api/analysis/analyze` | 分析与分类 DICOM 序列 |
+| POST | `/api/converter/convert-stream` | DICOM 转 NIfTI（SSE） |
+| POST | `/api/analysis/analyze` | 分析 DICOM 序列 |
 | POST | `/api/postprocessing/convert-hu` | HU 转 RED |
 | POST | `/api/postprocessing/sum-doses` | 剂量合并 |
-| POST | `/api/postprocessing/auto-rename-structs` | TG-263 批量重命名 |
 | GET | `/api/export/nrrd/{session}/{patient}/{series}` | 导出 NRRD 体 |
+| POST | `/api/auth/login` | 登录（OIDC 或本地） |
+| GET | `/api/auth/me` | 获取当前用户 |
+| POST | `/api/auth/refresh` | 刷新 JWT 令牌 |
+| POST | `/api/auth/logout` | 登出 |
+| GET | `/api/auth/config` | 认证配置（启用/禁用） |
 
 ## 配置
 
@@ -204,8 +289,8 @@ node server.cjs
 
 ## 技术栈
 
-- **前端**：Vue 3、TypeScript、Pinia、Vue Router、Vue I18n、Tailwind CSS、Vite
-- **后端**：Python、FastAPI、Uvicorn、pydicom、nibabel、SimpleITK、pynrrd、NumPy、Pillow
+- **前端**：Vue 3、TypeScript、Pinia、Vue Router、Vue I18n、Tailwind CSS、Vite、Cornerstone3D
+- **后端**：Python、FastAPI、Uvicorn、pydicom、nibabel、SimpleITK、pynrrd、NumPy、Pillow、httpx
 - **设计**：玻璃拟态 UI + 网格渐变背景
 
 ## 许可证

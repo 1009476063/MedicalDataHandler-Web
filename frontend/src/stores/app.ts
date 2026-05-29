@@ -1,6 +1,6 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
-import type { Patient, SliceData, StructInfo, DoseInfo, SeriesInfo } from '@/types'
+import type { Patient, SliceData, StructInfo, DoseInfo, SeriesInfo, VolumeInfo, SegFile } from '@/types'
 import axios from 'axios'
 
 export const useAppStore = defineStore('app', () => {
@@ -196,6 +196,56 @@ export const useAppStore = defineStore('app', () => {
     }
   }
 
+  async function getVolumeBinary(
+    seriesUid: string
+  ): Promise<{ data: ArrayBuffer; info: VolumeInfo } | null> {
+    if (!sessionId.value || !selectedPatientId.value) return null
+    try {
+      const res = await axios.post('/api/dicom/volume-binary', {
+        session_id: sessionId.value,
+        patient_id: selectedPatientId.value,
+        series_uid: seriesUid,
+      }, { responseType: 'arraybuffer' })
+
+      const headers = res.headers
+      return {
+        data: res.data,
+        info: {
+          shape: JSON.parse(headers['x-volume-shape'] || '[]'),
+          spacing: JSON.parse(headers['x-volume-spacing'] || '[1,1,1]'),
+          origin: JSON.parse(headers['x-volume-origin'] || '[0,0,0]'),
+          dtype: headers['x-volume-dtype'] || 'int16',
+        },
+      }
+    } catch {
+      return null
+    }
+  }
+
+  async function getSegFiles(): Promise<SegFile[]> {
+    if (!sessionId.value || !selectedPatientId.value) return []
+    try {
+      const res = await axios.get(`/api/seg/list/${sessionId.value}/${selectedPatientId.value}`)
+      return res.data.segments
+    } catch {
+      return []
+    }
+  }
+
+  async function getSegMask(fileId: string, segmentNumber: number) {
+    if (!sessionId.value) return null
+    try {
+      const res = await axios.post('/api/seg/mask', {
+        session_id: sessionId.value,
+        file_id: fileId,
+        segment_number: segmentNumber,
+      })
+      return res.data
+    } catch {
+      return null
+    }
+  }
+
   async function cleanupSession(): Promise<boolean> {
     if (!sessionId.value) return false
     try {
@@ -255,11 +305,29 @@ export const useAppStore = defineStore('app', () => {
     return res.data
   }
 
+  async function get4DInfo(patientId: string, seriesUid: string) {
+    if (!sessionId.value) throw new Error('No active session')
+    const res = await axios.get(`/api/4d/info/${sessionId.value}/${patientId}/${seriesUid}`)
+    return res.data as { is_4d: boolean; time_point_count: number; time_points: Array<{ position: number; file_count: number; shape: number[] }> }
+  }
+
+  async function get4DVolume(patientId: string, seriesUid: string, timePoint?: number) {
+    if (!sessionId.value) throw new Error('No active session')
+    const res = await axios.post('/api/4d/volume', {
+      session_id: sessionId.value,
+      patient_id: patientId,
+      series_uid: seriesUid,
+      time_point: timePoint,
+    })
+    return res.data as { volumes: Record<string, { data: number[][][]; shape: number[]; spacing: number[]; origin: number[]; dtype: string; min: number; max: number; mean: number }> }
+  }
+
   return {
     sessionId, patients, selectedPatientId, selectedSeriesUid,
     uploading, uploadProgress, currentPatient, currentSeries,
     uploadFiles, refreshPatients, getSlice, getSeriesInfo,
     getStructs, getStructMask, getDoseInfo, getDoseSlice,
-    selectPatient, selectSeries, getFileMetadata, getPatientDetail, getRoiBounds, exportNrrd, getSliceBinary, cleanupSession,
+    selectPatient, selectSeries, getFileMetadata, getPatientDetail, getRoiBounds, exportNrrd, getSliceBinary, getVolumeBinary, cleanupSession,
+    getSegFiles, getSegMask, get4DInfo, get4DVolume,
   }
 })

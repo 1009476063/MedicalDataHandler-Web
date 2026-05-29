@@ -23,7 +23,7 @@
         </div>
 
         <a
-          href="https://github.com/1009476063/MedicalDataHandler-Web"
+          href="https://github.com/1009476063/MedVista"
           target="_blank"
           class="hidden sm:flex p-2 rounded-xl text-accent-600 dark:text-accent-400 hover:bg-accent-100 dark:hover:bg-accent-800"
         >

@@ -41,6 +41,12 @@ class SliceRequest(BaseModel):
     window_width: Optional[float] = None
 
 
+class VolumeRequest(BaseModel):
+    session_id: str
+    patient_id: str
+    series_uid: str
+
+
 @router.post("/upload", response_model=UploadResponse)
 async def upload_dicom(files: list[UploadFile] = File(...)):
     if dicom_service._upload_slots <= 0:
@@ -193,5 +199,27 @@ async def get_slice_binary(req: SliceRequest):
             "X-Slice-Spacing": json.dumps(slice_data["spacing"]),
             "X-Slice-WindowCenter": str(slice_data.get("window_center", "")),
             "X-Slice-WindowWidth": str(slice_data.get("window_width", "")),
+        },
+    )
+
+
+@router.post("/volume-binary")
+async def get_volume_binary(req: VolumeRequest):
+    """Return raw 3D volume as binary for Cornerstone3D rendering."""
+    result = await asyncio.to_thread(
+        image_builder.get_volume_binary,
+        req.session_id, req.patient_id, req.series_uid,
+    )
+    if result is None:
+        raise HTTPException(status_code=404, detail="Volume not found")
+
+    return Response(
+        content=result["data"],
+        media_type="application/octet-stream",
+        headers={
+            "X-Volume-Shape": json.dumps(result["shape"]),
+            "X-Volume-Spacing": json.dumps(result["spacing"]),
+            "X-Volume-Origin": json.dumps(result["origin"]),
+            "X-Volume-Dtype": result["dtype"],
         },
     )

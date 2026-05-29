@@ -235,6 +235,11 @@ class DicomService:
             except Exception:
                 continue
 
+        # Extract temporal position for 4D support
+        temporal_pos_raw = getattr(ds, "TemporalPositionIdentifier", None)
+        temporal_position = int(temporal_pos_raw) if temporal_pos_raw is not None else 1
+        has_temporal = temporal_pos_raw is not None
+
         file_info = {
             "id": file_id,
             "filename": filename,
@@ -244,6 +249,8 @@ class DicomService:
             "series_uid": series_uid,
             "metadata": metadata,
             "all_tags": all_tags,
+            "temporal_position": temporal_position,
+            "has_temporal": has_temporal,
         }
 
         session["files"][file_id] = file_info
@@ -284,8 +291,8 @@ class DicomService:
         if modality in ("CT", "MR", "PT", "NM", "US", "XA"):
             session["raw_data"][file_id] = self._extract_pixel_data(ds, session_id, file_id)
 
-        # Store raw bytes for RT files so builders can re-parse them
-        if modality in ("RTSTRUCT", "RTDOSE", "RTPLAN"):
+        # Store raw bytes for RT and SEG files so services can re-parse them
+        if modality in ("RTSTRUCT", "RTDOSE", "RTPLAN", "SEG"):
             session["raw_data"][file_id] = {"raw_bytes": raw_bytes}
 
     def _extract_pixel_data(self, ds, session_id: str, file_id: str) -> Optional[dict]:

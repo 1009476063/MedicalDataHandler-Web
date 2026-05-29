@@ -5,6 +5,10 @@
         <h1 class="text-2xl font-bold text-accent-900 dark:text-white">{{ $t('dashboard.title') }}</h1>
         <p class="text-sm text-accent-500 dark:text-accent-400">{{ $t('dashboard.subtitle') }}</p>
       </div>
+      <div v-if="!backendAvailable" class="flex items-center gap-2 px-3 py-1.5 bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300 rounded-full text-xs font-medium">
+        <span class="w-2 h-2 rounded-full bg-amber-500 animate-pulse"></span>
+        {{ $t('dashboard.clientMode') }}
+      </div>
     </div>
 
     <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
@@ -165,11 +169,12 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref } from 'vue'
+import { computed, ref, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAppStore } from '@/stores/app'
 import { parseDicomFiles } from '@/utils/dicomClientParser'
 import type { ParseResult } from '@/utils/dicomClientParser'
+import { useClientMode } from '@/composables/useClientMode'
 import StatCard from '@/components/common/StatCard.vue'
 import LogPanel from '@/components/common/LogPanel.vue'
 import {
@@ -185,11 +190,16 @@ import {
 
 const router = useRouter()
 const appStore = useAppStore()
+const { isClientMode, backendAvailable, checkBackend } = useClientMode()
 const fileInput = ref<HTMLInputElement>()
 const uploading = ref(false)
 const uploadProgress = ref(0)
 const pendingFiles = ref<File[]>([])
 const preview = ref<ParseResult | null>(null)
+
+onMounted(() => {
+  checkBackend()
+})
 
 const patients = computed(() => appStore.patients || [])
 const totalStudies = computed(() =>
