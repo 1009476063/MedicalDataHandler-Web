@@ -59,6 +59,55 @@
             @change="handleFileSelect"
           />
         </div>
+
+        <!-- Client-side preview -->
+        <div v-if="preview && !uploading" class="mt-4 space-y-3">
+          <div class="flex items-center justify-between text-sm">
+            <span class="font-medium text-accent-700 dark:text-accent-300">{{ $t('dashboard.previewTitle') }}</span>
+            <button
+              class="text-xs text-accent-500 hover:text-accent-700 dark:hover:text-accent-300"
+              @click="clearPreview"
+            >{{ $t('dashboard.clearPreview') }}</button>
+          </div>
+          <div class="grid grid-cols-2 gap-2 text-xs text-accent-600 dark:text-accent-400">
+            <div class="p-2 rounded-lg bg-accent-50 dark:bg-accent-800/50">
+              <span class="font-medium">{{ $t('dashboard.previewFiles') }}:</span> {{ preview.totalFiles }}
+            </div>
+            <div class="p-2 rounded-lg bg-accent-50 dark:bg-accent-800/50">
+              <span class="font-medium">{{ $t('dashboard.previewSize') }}:</span> {{ formatSize(preview.totalSize) }}
+            </div>
+            <div class="p-2 rounded-lg bg-accent-50 dark:bg-accent-800/50">
+              <span class="font-medium">{{ $t('dashboard.previewPatients') }}:</span> {{ preview.patients.size }}
+            </div>
+            <div class="p-2 rounded-lg bg-accent-50 dark:bg-accent-800/50">
+              <span class="font-medium">{{ $t('dashboard.previewParsed') }}:</span> {{ preview.parsedCount }} / {{ preview.totalFiles }}
+            </div>
+          </div>
+          <div class="space-y-2 max-h-48 overflow-y-auto">
+            <div
+              v-for="[pid, patient] in preview.patients"
+              :key="pid"
+              class="p-2 rounded-lg bg-accent-50 dark:bg-accent-800/50 text-xs"
+            >
+              <p class="font-medium text-accent-800 dark:text-accent-200">{{ patient.name || 'Unknown' }} <span class="text-accent-500">({{ pid }})</span></p>
+              <div v-for="[studyName, study] in patient.studies" :key="studyName" class="ml-3 mt-1">
+                <p class="text-accent-600 dark:text-accent-400">{{ studyName }}</p>
+                <div v-for="[seriesName, series] in study.series" :key="seriesName" class="ml-3 mt-0.5 flex items-center gap-2">
+                  <span class="inline-block px-1.5 py-0.5 rounded text-[10px] font-medium bg-primary-100 dark:bg-primary-900/30 text-primary-700 dark:text-primary-300">{{ series.modality }}</span>
+                  <span class="text-accent-500 dark:text-accent-400 truncate">{{ seriesName || 'No description' }}</span>
+                  <span class="text-accent-400 dark:text-accent-500">({{ series.fileCount }})</span>
+                </div>
+              </div>
+            </div>
+          </div>
+          <button
+            class="w-full px-4 py-2.5 bg-primary-500 hover:bg-primary-600 text-white rounded-lg font-medium transition-colors"
+            @click="confirmUpload"
+          >
+            {{ $t('dashboard.uploadToServer') }}
+          </button>
+        </div>
+
         <div v-if="uploading" class="mt-4">
           <div class="flex items-center justify-between text-sm text-accent-600 dark:text-accent-400 mb-1">
             <span>{{ $t('dashboard.uploading') }}</span>
@@ -72,7 +121,7 @@
           </div>
         </div>
         <button
-          v-if="!uploading"
+          v-if="!uploading && !preview"
           class="mt-4 w-full px-4 py-2.5 bg-primary-500 hover:bg-primary-600 text-white rounded-lg font-medium transition-colors"
           @click="triggerFileInput"
         >
@@ -119,6 +168,8 @@
 import { computed, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAppStore } from '@/stores/app'
+import { parseDicomFiles } from '@/utils/dicomClientParser'
+import type { ParseResult } from '@/utils/dicomClientParser'
 import StatCard from '@/components/common/StatCard.vue'
 import LogPanel from '@/components/common/LogPanel.vue'
 import {
@@ -137,6 +188,8 @@ const appStore = useAppStore()
 const fileInput = ref<HTMLInputElement>()
 const uploading = ref(false)
 const uploadProgress = ref(0)
+const pendingFiles = ref<File[]>([])
+const preview = ref<ParseResult | null>(null)
 
 const patients = computed(() => appStore.patients || [])
 const totalStudies = computed(() =>
@@ -151,6 +204,13 @@ const totalSeries = computed(() =>
   )
 )
 
+function formatSize(bytes: number): string {
+  if (bytes < 1024) return `${bytes} B`
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`
+  if (bytes < 1024 * 1024 * 1024) return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
+  return `${(bytes / (1024 * 1024 * 1024)).toFixed(2)} GB`
+}
+
 function triggerFileInput() {
   fileInput.value?.click()
 }
@@ -158,14 +218,40 @@ function triggerFileInput() {
 async function handleFileSelect(e: Event) {
   const target = e.target as HTMLInputElement
   if (target.files?.length) {
-    await uploadFiles(Array.from(target.files))
+    const files = Array.from(target.files)
+    const hasMedicalFormat = files.some(f => /\.(nii\.gz|nii|nrrd|nhdr|mha|mhd)$/i.test(f.name))
+    if (hasMedicalFormat) {
+      await uploadFiles(files)
+    } else {
+      pendingFiles.value = files
+      preview.value = await parseDicomFiles(files)
+    }
   }
 }
 
 function handleDrop(e: DragEvent) {
   const files = e.dataTransfer?.files
   if (files?.length) {
-    uploadFiles(Array.from(files))
+    const fileArray = Array.from(files)
+    const hasMedicalFormat = fileArray.some(f => /\.(nii\.gz|nii|nrrd|nhdr|mha|mhd)$/i.test(f.name))
+    if (hasMedicalFormat) {
+      uploadFiles(fileArray)
+    } else {
+      pendingFiles.value = fileArray
+      parseDicomFiles(fileArray).then(r => { preview.value = r })
+    }
+  }
+}
+
+function clearPreview() {
+  preview.value = null
+  pendingFiles.value = []
+}
+
+async function confirmUpload() {
+  if (pendingFiles.value.length > 0) {
+    await uploadFiles(pendingFiles.value)
+    clearPreview()
   }
 }
 

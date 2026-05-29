@@ -50,9 +50,12 @@ A web-based medical image viewer and processing platform for radiation therapy. 
 - **DICOM Anonymization** — Remove patient PHI (Personally Identifiable Information) from DICOM files
 
 ### Scalability & Memory Management
-- **Disk-Based Pixel Storage** — Pixel data saved to `.npy` files on disk immediately after upload; only metadata kept in memory. Supports tens of thousands of DICOM files per session.
-- **Upload Validation** — Enforces limits: 50,000 files/session, 20 GB total upload size
-- **Background Session Cleanup** — Expired sessions (30 min TTL) auto-cleaned every 5 minutes, including disk files
+- **Client-Side Metadata Preview** — DICOM metadata parsed in-browser before upload (using `dicom-parser`), showing patient/study/modality breakdown instantly
+- **Binary Slice Transfer** — Slice data transferred as raw bytes via `/slice-binary` (~60% smaller than JSON), with metadata in HTTP headers
+- **Disk-Based Pixel Storage** — Pixel data saved to `.npy` files on disk immediately after upload; only metadata kept in memory
+- **Resource Limits** — Per-session: 10,000 files, 2 GB max size. Server-wide: max 2 concurrent uploads, 2 concurrent conversions (HTTP 429 when full)
+- **Disk Space Guard** — Rejects uploads when server has < 500 MB free or insufficient space for the upload size
+- **Session Cleanup** — 15-minute TTL with 2-minute cleanup cycle + explicit DELETE endpoint for immediate cleanup
 - **Optimized Conversion** — Pre-allocated volume arrays and on-demand pixel loading reduce peak memory during NIfTI conversion
 
 ### Multi-Format Support
@@ -78,8 +81,8 @@ MedicalDataHandler-Web/
 │   ├── app/
 │   │   ├── main.py          # App entry, CORS, routers
 │   │   ├── routers/         # API endpoints
-│   │   │   ├── dicom.py     # DICOM upload, slice, structs, dose, plans, ROI bounds
-│   │   │   ├── converter.py # DICOM-to-NIfTI conversion (scan, convert-stream, anonymize, download)
+│   │   │   ├── dicom.py     # DICOM upload, slice (JSON + binary), structs, dose, plans, ROI bounds, session cleanup
+│   │   │   ├── converter.py # DICOM-to-NIfTI conversion (scan, convert-stream, anonymize, download, queue-status)
 │   │   │   ├── analysis.py  # Sequence analysis (ADC/DWI/DCE/MG/US classification)
 │   │   │   ├── export.py    # NRRD volume export
 │   │   │   ├── postprocessing.py  # HU-RED, dose summation, TG-263 rename
@@ -87,10 +90,10 @@ MedicalDataHandler-Web/
 │   │   │   ├── config.py    # TG-263 config, window presets
 │   │   │   └── logging.py   # Activity logging
 │   │   ├── services/        # Business logic
-│   │   │   ├── dicom_service.py    # DICOM session management, disk-based pixel storage, background cleanup
+│   │   │   ├── dicom_service.py    # DICOM session management, disk-based pixel storage, rate limiting (semaphores), disk space guard
 │   │   │   ├── dicom_converter_service.py # DICOM-to-NIfTI conversion (on-demand pixel loading, pre-allocated volumes)
 │   │   │   ├── sequence_analysis_service.py # Intelligent sequence classification & selection
-│   │   │   ├── image_builder.py    # Volume building & slice extraction
+│   │   │   ├── image_builder.py    # Volume building & slice extraction (disk-based pixel loading)
 │   │   │   ├── rt_struct_builder.py # RT structure contour processing
 │   │   │   ├── rt_dose_builder.py  # RT dose grid processing
 │   │   │   ├── nifti_service.py    # NIfTI/NRRD/MHA loader
@@ -106,7 +109,8 @@ MedicalDataHandler-Web/
 │   │   │   ├── layout/      # AppLayout, AppSidebar, AppHeader
 │   │   │   ├── viewer/      # ImageSliceViewer (canvas-based)
 │   │   │   └── common/      # DataTable, StatusBadge, SequenceCard, etc.
-│   │   ├── stores/          # Pinia state management
+│   │   ├── stores/          # Pinia state management (getSliceBinary, cleanupSession)
+│   │   ├── utils/           # Client-side DICOM parser (dicomClientParser.ts)
 │   │   ├── i18n/            # English + Chinese translations
 │   │   ├── router/          # Vue Router with lazy loading
 │   │   └── types/           # TypeScript interfaces
@@ -167,6 +171,8 @@ Frontend runs at `http://localhost:3000` (production proxy)
 | POST | `/api/upload/medical` | Upload NIfTI/NRRD/MHA files |
 | GET | `/api/dicom/patients/{session}` | List patients |
 | POST | `/api/dicom/slice` | Get image slice |
+| POST | `/api/dicom/slice-binary` | Get image slice (binary, ~60% smaller) |
+| DELETE | `/api/dicom/session/{session_id}` | Explicit session cleanup |
 | GET | `/api/dicom/structs/{session}/{patient}` | List RT structures |
 | GET | `/api/dicom/struct-mask/{session}/{patient}/{key}/{slice}` | Get structure mask |
 | GET | `/api/dicom/roi-bounds/{session}/{patient}/{key}` | Get ROI bounding box |
@@ -174,6 +180,7 @@ Frontend runs at `http://localhost:3000` (production proxy)
 | GET | `/api/dicom/plans/{session}/{patient}` | Get RT plans |
 | POST | `/api/converter/scan` | Scan patient series for conversion |
 | POST | `/api/converter/convert-stream` | Convert DICOM to NIfTI (SSE progress) |
+| GET | `/api/converter/queue-status` | Server queue availability |
 | POST | `/api/converter/anonymize` | Anonymize DICOM files |
 | GET | `/api/converter/download/{session}/{filename}` | Download converted file |
 | POST | `/api/analysis/analyze` | Analyze & classify DICOM sequences |

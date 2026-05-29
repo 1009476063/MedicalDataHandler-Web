@@ -23,7 +23,16 @@ class ImageBuilder:
             if series_uid and finfo["series_uid"] != series_uid:
                 continue
             if fid in session["raw_data"] and session["raw_data"][fid] is not None:
-                files.append((fid, session["raw_data"][fid]))
+                raw = session["raw_data"][fid]
+                # Load from disk if data_path is available (disk-based storage)
+                if "data_path" in raw and raw["data_path"]:
+                    try:
+                        pixel_array = np.load(raw["data_path"])
+                        raw = {**raw, "data": pixel_array}
+                    except Exception:
+                        continue
+                if "data" in raw:
+                    files.append((fid, raw))
 
         if not files:
             return None

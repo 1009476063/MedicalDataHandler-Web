@@ -152,6 +152,64 @@ export const useAppStore = defineStore('app', () => {
     selectedSeriesUid.value = seriesUid
   }
 
+  async function getSliceBinary(
+    seriesUid: string, orientation: string, sliceIndex: number,
+    windowCenter?: number, windowWidth?: number
+  ): Promise<SliceData | null> {
+    if (!sessionId.value || !selectedPatientId.value) return null
+    try {
+      const res = await axios.post('/api/dicom/slice-binary', {
+        session_id: sessionId.value,
+        patient_id: selectedPatientId.value,
+        series_uid: seriesUid,
+        orientation,
+        slice_index: sliceIndex,
+        window_center: windowCenter ?? null,
+        window_width: windowWidth ?? null,
+      }, { responseType: 'arraybuffer' })
+
+      const headers = res.headers
+      const shape: number[] = JSON.parse(headers['x-slice-shape'] || '[]')
+      const binaryData = new Uint8Array(res.data)
+      const data: number[][] = []
+      const [rows, cols] = shape
+      for (let r = 0; r < rows; r++) {
+        const row: number[] = []
+        for (let c = 0; c < cols; c++) {
+          row.push(binaryData[r * cols + c])
+        }
+        data.push(row)
+      }
+
+      return {
+        data,
+        shape,
+        orientation: headers['x-slice-orientation'] || orientation,
+        slice_index: parseInt(headers['x-slice-index'] || '0'),
+        max_slice: parseInt(headers['x-slice-maxslice'] || '0'),
+        spacing: JSON.parse(headers['x-slice-spacing'] || '[1,1,1]'),
+        window_center: parseFloat(headers['x-slice-windowcenter']) || null,
+        window_width: parseFloat(headers['x-slice-windowwidth']) || null,
+      }
+    } catch {
+      return null
+    }
+  }
+
+  async function cleanupSession(): Promise<boolean> {
+    if (!sessionId.value) return false
+    try {
+      await axios.delete(`/api/dicom/session/${sessionId.value}`)
+      sessionId.value = null
+      patients.value = []
+      selectedPatientId.value = null
+      selectedSeriesUid.value = null
+      return true
+    } catch {
+      return false
+    }
+  }
+
   async function getFileMetadata(fileId: string): Promise<Record<string, unknown> | null> {
     if (!sessionId.value) return null
     try {
@@ -202,6 +260,6 @@ export const useAppStore = defineStore('app', () => {
     uploading, uploadProgress, currentPatient, currentSeries,
     uploadFiles, refreshPatients, getSlice, getSeriesInfo,
     getStructs, getStructMask, getDoseInfo, getDoseSlice,
-    selectPatient, selectSeries, getFileMetadata, getPatientDetail, getRoiBounds, exportNrrd,
+    selectPatient, selectSeries, getFileMetadata, getPatientDetail, getRoiBounds, exportNrrd, getSliceBinary, cleanupSession,
   }
 })

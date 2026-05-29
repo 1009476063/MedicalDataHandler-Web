@@ -89,6 +89,13 @@ export interface OverlaySettings {
   enabledDoses: string[]
 }
 
+export interface QueueStatus {
+  uploads_available: number
+  conversions_available: number
+  max_uploads: number
+  max_conversions: number
+}
+
 export type Modality = 'CT' | 'MR' | 'RTDOSE' | 'RTSTRUCT' | 'RTPLAN' | 'PT' | 'NM' | string
 
 export const MODALITY_COLORS: Record<string, { bg: string; text: string; dot: string }> = {

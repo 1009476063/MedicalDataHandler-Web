@@ -14,6 +14,7 @@ from fastapi.responses import FileResponse, StreamingResponse
 from pydantic import BaseModel
 
 from app.services import dicom_converter_service as converter
+from app.services.dicom_service import dicom_service, MAX_CONCURRENT_UPLOADS, MAX_CONCURRENT_CONVERSIONS
 from app.services.log_service import log_service
 
 router = APIRouter()
@@ -69,6 +70,9 @@ async def convert_to_nifti_stream(req: ConvertRequest):
       {"type": "progress", "current": 1, "total": 5, "description": "...", "status": "done"}
       {"type": "complete", "files": [...], "errors": [...]}
     """
+    if dicom_service.conversion_semaphore.locked():
+        raise HTTPException(status_code=429, detail="Server busy, conversion queue full. Try again later.")
+
     import queue
     import threading
 
@@ -81,14 +85,15 @@ async def convert_to_nifti_stream(req: ConvertRequest):
             done_event.set()
 
     async def run_conversion():
-        await asyncio.to_thread(
-            converter.convert_session_to_nifti,
-            req.session_id,
-            req.patient_id,
-            req.modality,
-            req.selected_series,
-            progress_callback,
-        )
+        async with dicom_service.conversion_semaphore:
+            await asyncio.to_thread(
+                converter.convert_session_to_nifti,
+                req.session_id,
+                req.patient_id,
+                req.modality,
+                req.selected_series,
+                progress_callback,
+            )
 
     # Start conversion in background
     conversion_task = asyncio.create_task(run_conversion())
@@ -161,3 +166,14 @@ async def get_results(session_id: str, patient_id: str):
                 "size": f.stat().st_size,
             })
     return {"files": files}
+
+
+@router.get("/queue-status")
+async def queue_status():
+    """Return available concurrency slots for uploads and conversions."""
+    return {
+        "uploads_available": MAX_CONCURRENT_UPLOADS - dicom_service.upload_semaphore._value,
+        "conversions_available": MAX_CONCURRENT_CONVERSIONS - dicom_service.conversion_semaphore._value,
+        "max_uploads": MAX_CONCURRENT_UPLOADS,
+        "max_conversions": MAX_CONCURRENT_CONVERSIONS,
+    }

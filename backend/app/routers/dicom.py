@@ -1,5 +1,5 @@
 from fastapi import APIRouter, UploadFile, File, HTTPException
-from fastapi.responses import StreamingResponse
+from fastapi.responses import StreamingResponse, Response
 from pydantic import BaseModel
 from typing import Optional
 import pydicom
@@ -9,7 +9,7 @@ import json
 import asyncio
 from pathlib import Path
 
-from app.services.dicom_service import dicom_service
+from app.services.dicom_service import dicom_service, MAX_CONCURRENT_UPLOADS
 from app.services.image_builder import ImageBuilder
 from app.services.rt_struct_builder import RTStructBuilder
 from app.services.rt_dose_builder import RTDoseBuilder
@@ -43,10 +43,13 @@ class SliceRequest(BaseModel):
 
 @router.post("/upload", response_model=UploadResponse)
 async def upload_dicom(files: list[UploadFile] = File(...)):
-    result = await dicom_service.process_upload(files)
-    if result.get("error"):
-        raise HTTPException(status_code=413, detail=result["error"])
-    return result
+    if dicom_service.upload_semaphore.locked():
+        raise HTTPException(status_code=429, detail="Server busy, too many concurrent uploads. Try again later.")
+    async with dicom_service.upload_semaphore:
+        result = await dicom_service.process_upload(files)
+        if result.get("error"):
+            raise HTTPException(status_code=413, detail=result["error"])
+        return result
 
 
 @router.get("/patients/{session_id}")
@@ -148,3 +151,42 @@ async def get_roi_bounds(session_id: str, patient_id: str, struct_key: str):
 async def get_rt_plans(session_id: str, patient_id: str):
     plans = dicom_service.get_rt_plans(session_id, patient_id)
     return {"plans": plans or []}
+
+
+@router.delete("/session/{session_id}")
+async def delete_session(session_id: str):
+    cleaned = dicom_service.cleanup_session(session_id)
+    if not cleaned:
+        raise HTTPException(status_code=404, detail="Session not found")
+    return {"status": "cleaned", "session_id": session_id}
+
+
+@router.post("/slice-binary")
+async def get_slice_binary(req: SliceRequest):
+    """Return slice as binary data with metadata in headers (~60% smaller than JSON)."""
+    slice_data = await asyncio.to_thread(
+        image_builder.get_slice,
+        req.session_id, req.patient_id, req.series_uid,
+        req.orientation, req.slice_index,
+        req.window_center, req.window_width,
+    )
+    if slice_data is None:
+        raise HTTPException(status_code=404, detail="Slice not found")
+
+    # Convert to binary
+    arr = np.array(slice_data["data"], dtype=np.uint8)
+    binary_data = arr.tobytes()
+
+    return Response(
+        content=binary_data,
+        media_type="application/octet-stream",
+        headers={
+            "X-Slice-Shape": json.dumps(slice_data["shape"]),
+            "X-Slice-Orientation": slice_data["orientation"],
+            "X-Slice-Index": str(slice_data["slice_index"]),
+            "X-Slice-MaxSlice": str(slice_data["max_slice"]),
+            "X-Slice-Spacing": json.dumps(slice_data["spacing"]),
+            "X-Slice-WindowCenter": str(slice_data.get("window_center", "")),
+            "X-Slice-WindowWidth": str(slice_data.get("window_width", "")),
+        },
+    )

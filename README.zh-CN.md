@@ -50,9 +50,12 @@
 - **DICOM 匿名化** — 从 DICOM 文件中去除患者 PHI（个人身份信息）
 
 ### 可扩展性与内存管理
-- **磁盘像素存储** — 上传后立即保存像素数据为 `.npy` 文件，内存中仅保留元数据。支持单会话数万个 DICOM 文件。
-- **上传验证** — 限制：单会话 50,000 文件，总上传大小 20 GB
-- **后台会话清理** — 过期会话（30 分钟 TTL）每 5 分钟自动清理，包括磁盘文件
+- **客户端元数据预览** — 使用 `dicom-parser` 在浏览器端解析 DICOM 元数据（无需上传），即时显示患者/研究/模态分布
+- **二进制切片传输** — 切片数据以原始字节通过 `/slice-binary` 传输（比 JSON 小约 60%），元数据置于 HTTP 头
+- **磁盘像素存储** — 上传后立即保存像素数据为 `.npy` 文件，内存中仅保留元数据
+- **资源限制** — 单会话：10,000 文件，最大 2 GB。服务器全局：最多 2 个并发上传，2 个并发转换（满时返回 HTTP 429）
+- **磁盘空间保护** — 服务器剩余空间 < 500 MB 或上传空间不足时拒绝上传
+- **会话清理** — 15 分钟 TTL + 2 分钟清理周期 + 显式 DELETE 端点即时清理
 - **优化转换** — 预分配体数组 + 按需加载像素，降低 NIfTI 转换峰值内存
 
 ### 多格式支持
@@ -78,8 +81,8 @@ MedicalDataHandler-Web/
 │   ├── app/
 │   │   ├── main.py          # 应用入口、CORS、路由
 │   │   ├── routers/         # API 端点
-│   │   │   ├── dicom.py     # DICOM 上传、切片、结构、剂量、计划、ROI 边界
-│   │   │   ├── converter.py # DICOM 转 NIfTI（扫描、流式转换、匿名化、下载）
+│   │   │   ├── dicom.py     # DICOM 上传、切片（JSON + 二进制）、结构、剂量、计划、ROI 边界、会话清理
+│   │   │   ├── converter.py # DICOM 转 NIfTI（扫描、流式转换、匿名化、下载、队列状态）
 │   │   │   ├── analysis.py  # 序列分析（ADC/DWI/DCE/MG/US 分类）
 │   │   │   ├── export.py    # NRRD 体导出
 │   │   │   ├── postprocessing.py  # HU-RED、剂量合并、TG-263 重命名
@@ -87,10 +90,10 @@ MedicalDataHandler-Web/
 │   │   │   ├── config.py    # TG-263 配置、窗位预设
 │   │   │   └── logging.py   # 活动日志
 │   │   ├── services/        # 业务逻辑
-│   │   │   ├── dicom_service.py    # DICOM 会话管理、磁盘像素存储、后台清理
+│   │   │   ├── dicom_service.py    # DICOM 会话管理、磁盘像素存储、速率限制（信号量）、磁盘空间保护
 │   │   │   ├── dicom_converter_service.py # DICOM 转 NIfTI（按需像素加载、预分配体）
 │   │   │   ├── sequence_analysis_service.py # 智能序列分类与选择
-│   │   │   ├── image_builder.py    # 体构建与切片提取
+│   │   │   ├── image_builder.py    # 体构建与切片提取（磁盘像素加载）
 │   │   │   ├── rt_struct_builder.py # RT 结构轮廓处理
 │   │   │   ├── rt_dose_builder.py  # RT 剂量网格处理
 │   │   │   ├── nifti_service.py    # NIfTI/NRRD/MHA 加载器
@@ -106,7 +109,8 @@ MedicalDataHandler-Web/
 │   │   │   ├── layout/      # AppLayout、AppSidebar、AppHeader
 │   │   │   ├── viewer/      # ImageSliceViewer（基于 Canvas）
 │   │   │   └── common/      # DataTable、StatusBadge、SequenceCard 等
-│   │   ├── stores/          # Pinia 状态管理
+│   │   ├── stores/          # Pinia 状态管理（getSliceBinary、cleanupSession）
+│   │   ├── utils/           # 客户端 DICOM 解析器（dicomClientParser.ts）
 │   │   ├── i18n/            # 英文 + 中文翻译
 │   │   ├── router/          # Vue Router 懒加载
 │   │   └── types/           # TypeScript 接口
@@ -167,6 +171,8 @@ node server.cjs
 | POST | `/api/upload/medical` | 上传 NIfTI/NRRD/MHA 文件 |
 | GET | `/api/dicom/patients/{session}` | 获取患者列表 |
 | POST | `/api/dicom/slice` | 获取影像切片 |
+| POST | `/api/dicom/slice-binary` | 获取影像切片（二进制，小约 60%） |
+| DELETE | `/api/dicom/session/{session_id}` | 显式会话清理 |
 | GET | `/api/dicom/structs/{session}/{patient}` | 获取 RT 结构列表 |
 | GET | `/api/dicom/struct-mask/{session}/{patient}/{key}/{slice}` | 获取结构掩模 |
 | GET | `/api/dicom/roi-bounds/{session}/{patient}/{key}` | 获取 ROI 边界框 |
@@ -174,6 +180,7 @@ node server.cjs
 | GET | `/api/dicom/plans/{session}/{patient}` | 获取 RT 计划 |
 | POST | `/api/converter/scan` | 扫描患者序列 |
 | POST | `/api/converter/convert-stream` | DICOM 转 NIfTI（SSE 进度） |
+| GET | `/api/converter/queue-status` | 服务器队列状态 |
 | POST | `/api/converter/anonymize` | 匿名化 DICOM 文件 |
 | GET | `/api/converter/download/{session}/{filename}` | 下载转换文件 |
 | POST | `/api/analysis/analyze` | 分析与分类 DICOM 序列 |

@@ -13,10 +13,15 @@ import re
 
 from app.services.log_service import log_service
 
-SESSION_TTL = 1800  # 30 minutes
-CLEANUP_INTERVAL = 300  # 5 minutes
-MAX_FILES_PER_SESSION = 50000
-MAX_SESSION_SIZE_MB = 20000  # 20 GB
+SESSION_TTL = 900  # 15 minutes
+CLEANUP_INTERVAL = 120  # 2 minutes
+MAX_FILES_PER_SESSION = 10000
+MAX_SESSION_SIZE_MB = 2000  # 2 GB
+
+MIN_FREE_DISK_MB = 500          # Reject upload if < 500MB free
+DISK_SAFETY_MULTIPLIER = 2      # Require 2x upload size free
+MAX_CONCURRENT_UPLOADS = 2
+MAX_CONCURRENT_CONVERSIONS = 2
 
 UPLOAD_DIR = Path("uploads")
 
@@ -59,6 +64,8 @@ class DicomService:
     def __init__(self):
         self.sessions: dict[str, dict] = {}
         self._session_timestamps: dict[str, float] = {}
+        self.upload_semaphore = asyncio.Semaphore(MAX_CONCURRENT_UPLOADS)
+        self.conversion_semaphore = asyncio.Semaphore(MAX_CONCURRENT_CONVERSIONS)
 
     async def _periodic_cleanup(self):
         """Background task: clean up expired sessions every CLEANUP_INTERVAL."""
@@ -86,6 +93,21 @@ class DicomService:
     def _touch_session(self, session_id: str):
         self._session_timestamps[session_id] = time.time()
 
+    def cleanup_session(self, session_id: str) -> bool:
+        """Explicitly clean up a session and its disk files. Returns True if cleaned."""
+        if session_id not in self.sessions:
+            return False
+        self.sessions.pop(session_id, None)
+        self._session_timestamps.pop(session_id, None)
+        session_dir = UPLOAD_DIR / session_id
+        if session_dir.exists():
+            try:
+                shutil.rmtree(session_dir, ignore_errors=True)
+            except Exception:
+                pass
+        log_service.info(f"Session {session_id} cleaned up explicitly", "session")
+        return True
+
     async def process_upload(self, files: list[UploadFile]) -> dict:
         file_bytes_list = []
         for f in files:
@@ -111,6 +133,24 @@ class DicomService:
                 "patients": [],
                 "file_count": 0,
                 "error": f"Upload too large: {total_size_mb:.0f} MB exceeds limit of {MAX_SESSION_SIZE_MB} MB",
+            }
+
+        # Check available disk space
+        disk = shutil.disk_usage(UPLOAD_DIR)
+        free_mb = disk.free / (1024 * 1024)
+        if free_mb < MIN_FREE_DISK_MB:
+            return {
+                "session_id": "",
+                "patients": [],
+                "file_count": 0,
+                "error": f"Insufficient disk space: {free_mb:.0f} MB free, need at least {MIN_FREE_DISK_MB} MB",
+            }
+        if free_mb < total_size_mb * DISK_SAFETY_MULTIPLIER:
+            return {
+                "session_id": "",
+                "patients": [],
+                "file_count": 0,
+                "error": f"Insufficient disk space for upload: {free_mb:.0f} MB free, need {total_size_mb * DISK_SAFETY_MULTIPLIER:.0f} MB ({DISK_SAFETY_MULTIPLIER}x upload size)",
             }
 
         session_id = str(uuid.uuid4())[:8]

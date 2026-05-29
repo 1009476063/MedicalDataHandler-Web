@@ -1,7 +1,17 @@
 <template>
   <div class="h-full flex flex-col animate-fade-in">
-    <div class="px-4 py-2 border-b border-accent-200 dark:border-accent-700 bg-white dark:bg-accent-900">
+    <div class="px-4 py-2 border-b border-accent-200 dark:border-accent-700 bg-white dark:bg-accent-900 flex items-center justify-between">
       <h1 class="text-lg font-semibold text-accent-900 dark:text-white">{{ $t('converter.title') }}</h1>
+      <div v-if="queueStatus" class="flex items-center gap-3 text-xs text-accent-500 dark:text-accent-400">
+        <span class="flex items-center gap-1">
+          <span class="inline-block w-1.5 h-1.5 rounded-full" :class="queueStatus.uploads_available > 0 ? 'bg-green-500' : 'bg-red-500'" />
+          {{ $t('converter.uploadsAvailable', { current: queueStatus.uploads_available, max: queueStatus.max_uploads }) }}
+        </span>
+        <span class="flex items-center gap-1">
+          <span class="inline-block w-1.5 h-1.5 rounded-full" :class="queueStatus.conversions_available > 0 ? 'bg-green-500' : 'bg-red-500'" />
+          {{ $t('converter.conversionsAvailable', { current: queueStatus.conversions_available, max: queueStatus.max_conversions }) }}
+        </span>
+      </div>
     </div>
 
     <div class="flex-1 overflow-y-auto p-4">
@@ -171,7 +181,8 @@
           <!-- Convert Selected Button -->
           <div class="mt-4 flex gap-2">
             <button
-              :disabled="converting || selectedConvertSeries.length === 0"
+              :disabled="converting || selectedConvertSeries.length === 0 || queueBusy"
+              :title="queueBusy ? $t('converter.queueFull') : ''"
               class="flex-1 px-3 py-2 bg-primary-500 hover:bg-primary-600 disabled:bg-accent-300 dark:disabled:bg-accent-700 disabled:cursor-not-allowed text-white rounded-lg text-sm font-medium transition-colors"
               @click="convertSelectedSequences"
             >
@@ -328,7 +339,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed } from 'vue'
+import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useAppStore } from '@/stores/app'
 import axios from 'axios'
@@ -338,6 +349,7 @@ import {
   ClipboardDocumentListIcon,
 } from '@heroicons/vue/24/outline'
 import SequenceCard from '@/components/common/SequenceCard.vue'
+import type { QueueStatus } from '@/types'
 
 const { t } = useI18n()
 const appStore = useAppStore()
@@ -416,6 +428,33 @@ const conversionProgress = ref<Array<{
 }>>([])
 const conversionCurrent = ref(0)
 const conversionTotal = ref(0)
+
+// Queue status polling
+const queueStatus = ref<QueueStatus | null>(null)
+const queueBusy = computed(() => queueStatus.value?.conversions_available === 0)
+let queuePollTimer: ReturnType<typeof setInterval> | null = null
+
+async function fetchQueueStatus() {
+  try {
+    const res = await axios.get('/api/converter/queue-status')
+    queueStatus.value = res.data
+  } catch {
+    queueStatus.value = null
+  }
+}
+
+function startQueuePolling() {
+  fetchQueueStatus()
+  queuePollTimer = setInterval(fetchQueueStatus, 10000)
+}
+
+onMounted(() => {
+  if (appStore.sessionId) startQueuePolling()
+})
+
+onUnmounted(() => {
+  if (queuePollTimer) clearInterval(queuePollTimer)
+})
 
 // Anonymization state
 const anonPatientId = ref('')

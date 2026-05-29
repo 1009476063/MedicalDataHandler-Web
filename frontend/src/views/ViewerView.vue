@@ -782,9 +782,9 @@ async function loadAllSlices() {
   if (!appStore.selectedSeriesUid) return
 
   const [ax, sag, cor] = await Promise.all([
-    appStore.getSlice(appStore.selectedSeriesUid, 'axial', sliceIndex.value, windowCenter.value, windowWidth.value),
-    appStore.getSlice(appStore.selectedSeriesUid, 'sagittal', sagSliceIndex.value, windowCenter.value, windowWidth.value),
-    appStore.getSlice(appStore.selectedSeriesUid, 'coronal', corSliceIndex.value, windowCenter.value, windowWidth.value),
+    appStore.getSliceBinary(appStore.selectedSeriesUid, 'axial', sliceIndex.value, windowCenter.value, windowWidth.value),
+    appStore.getSliceBinary(appStore.selectedSeriesUid, 'sagittal', sagSliceIndex.value, windowCenter.value, windowWidth.value),
+    appStore.getSliceBinary(appStore.selectedSeriesUid, 'coronal', corSliceIndex.value, windowCenter.value, windowWidth.value),
   ])
 
   axialData.value = ax?.data || null
@@ -894,7 +894,7 @@ function onCorSliceChange(delta: number) {
 
 async function loadAxialSlice() {
   if (!appStore.selectedSeriesUid) return
-  const data = await appStore.getSlice(appStore.selectedSeriesUid, 'axial', sliceIndex.value, windowCenter.value, windowWidth.value)
+  const data = await appStore.getSliceBinary(appStore.selectedSeriesUid, 'axial', sliceIndex.value, windowCenter.value, windowWidth.value)
   axialData.value = data?.data || null
   // Reload overlays for new slice position
   if (enabledStructOverlays.value.size > 0 || enabledDoseOverlays.value.size > 0) {
@@ -906,7 +906,7 @@ async function loadAxialSlice() {
 
 async function loadSagSlice() {
   if (!appStore.selectedSeriesUid) return
-  const data = await appStore.getSlice(appStore.selectedSeriesUid, 'sagittal', sagSliceIndex.value, windowCenter.value, windowWidth.value)
+  const data = await appStore.getSliceBinary(appStore.selectedSeriesUid, 'sagittal', sagSliceIndex.value, windowCenter.value, windowWidth.value)
   sagittalData.value = data?.data || null
   if (enabledStructOverlays.value.size > 0 || enabledDoseOverlays.value.size > 0) {
     structOverlayCache.value = {}
@@ -917,7 +917,7 @@ async function loadSagSlice() {
 
 async function loadCorSlice() {
   if (!appStore.selectedSeriesUid) return
-  const data = await appStore.getSlice(appStore.selectedSeriesUid, 'coronal', corSliceIndex.value, windowCenter.value, windowWidth.value)
+  const data = await appStore.getSliceBinary(appStore.selectedSeriesUid, 'coronal', corSliceIndex.value, windowCenter.value, windowWidth.value)
   coronalData.value = data?.data || null
   if (enabledStructOverlays.value.size > 0 || enabledDoseOverlays.value.size > 0) {
     structOverlayCache.value = {}
