@@ -24,7 +24,7 @@
 
         <router-link
           to="/settings"
-          class="hidden sm:flex p-2 rounded-xl text-accent-600 dark:text-accent-400 hover:bg-accent-100 dark:hover:bg-accent-800"
+          class="p-2 rounded-xl text-accent-600 dark:text-accent-400 hover:bg-accent-100 dark:hover:bg-accent-800"
           :title="$t('sidebar.nav.settings')"
         >
           <Cog6ToothIcon class="w-5 h-5" />
