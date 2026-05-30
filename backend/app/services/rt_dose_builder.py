@@ -2,6 +2,8 @@ import numpy as np
 from typing import Optional
 import pydicom
 
+from app.utils.cache import LRUCache
+
 
 # 14-color dose colormap (blue → green → yellow → red)
 DOSE_COLORMAP = [
@@ -24,7 +26,7 @@ DOSE_COLORMAP = [
 
 class RTDoseBuilder:
     def __init__(self):
-        self._cache: dict[str, dict] = {}
+        self._cache = LRUCache(maxsize=3)
 
     def _get_session(self, session_id: str) -> Optional[dict]:
         from app.services.dicom_service import dicom_service

@@ -10,3 +10,10 @@ app.use(createPinia())
 app.use(router)
 app.use(i18n)
 app.mount('#app')
+
+// Register Service Worker for slice caching (PWA)
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('/sw.js').catch(() => {})
+  })
+}

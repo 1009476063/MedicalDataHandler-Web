@@ -20,7 +20,6 @@ export default {
       settings: 'Settings',
       pacs: 'PACS',
       anonymization: 'Anonymization',
-      offline: 'Offline Viewer',
     },
   },
   header: {

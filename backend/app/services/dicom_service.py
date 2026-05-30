@@ -5,7 +5,7 @@ import numpy as np
 import shutil
 import time
 from pathlib import Path
-from typing import Optional
+from typing import Optional, TypedDict
 from collections import defaultdict
 from fastapi import UploadFile
 import json
@@ -25,9 +25,17 @@ MAX_CONCURRENT_CONVERSIONS = 2
 
 UPLOAD_DIR = Path("uploads")
 
-# Validate session_id format (8-char hex from uuid4[:8]) and patient_id (alphanumeric + dots/hyphens)
-_SESSION_ID_RE = re.compile(r'^[0-9a-f]{8}$')
+# Validate session_id format (32-char hex from uuid4.hex) and patient_id (alphanumeric + dots/hyphens)
+_SESSION_ID_RE = re.compile(r'^[0-9a-f]{32}$')
 _PATH_SAFE_RE = re.compile(r'^[a-zA-Z0-9._-]+$')
+
+class SessionData(TypedDict, total=False):
+    files: dict[str, dict]
+    patients: dict[str, dict]
+    series: dict[str, dict]
+    studies: dict[str, dict]
+    raw_data: dict
+    session_id: str
 
 DICOM_TAGS = {
     "PatientName": "00100010",
@@ -66,7 +74,7 @@ DICOM_TAGS = {
 
 class DicomService:
     def __init__(self):
-        self.sessions: dict[str, dict] = {}
+        self.sessions: dict[str, SessionData] = {}
         self._session_timestamps: dict[str, float] = {}
         self.upload_semaphore = asyncio.Semaphore(MAX_CONCURRENT_UPLOADS)
         self.conversion_semaphore = asyncio.Semaphore(MAX_CONCURRENT_CONVERSIONS)
@@ -161,7 +169,7 @@ class DicomService:
                 "error": f"Insufficient disk space for upload: {free_mb:.0f} MB free, need {total_size_mb * DISK_SAFETY_MULTIPLIER:.0f} MB ({DISK_SAFETY_MULTIPLIER}x upload size)",
             }
 
-        session_id = str(uuid.uuid4())[:8]
+        session_id = uuid.uuid4().hex
         self.sessions[session_id] = {
             "files": {},
             "patients": {},
@@ -424,10 +432,12 @@ class DicomService:
                             force=True
                         )
                         if hasattr(ds, "StructureSetROISequence"):
+                            overrides = session.get("struct_names", {})
                             for roi in ds.StructureSetROISequence:
+                                roi_key = str(roi.ROINumber)
                                 structs.append({
-                                    "key": str(roi.ROINumber),
-                                    "name": str(roi.ROIName),
+                                    "key": roi_key,
+                                    "name": overrides.get(roi_key, str(roi.ROIName)),
                                     "file_id": fid,
                                 })
                             continue
@@ -443,24 +453,38 @@ class DicomService:
         return structs
 
     def rename_struct(self, session_id: str, patient_id: str, struct_key: str, new_name: str) -> Optional[dict]:
-        """Rename an RT structure."""
+        """Rename an RT structure by ROI number."""
         session = self.sessions.get(session_id)
         if not session:
             return None
 
-        file_info = session["files"].get(struct_key)
-        if not file_info or file_info["patient_id"] != patient_id:
-            return None
+        # struct_key is ROINumber (e.g., "1", "2"), not file_id
+        # Store override in session so get_structs can pick it up
+        if "struct_names" not in session:
+            session["struct_names"] = {}
 
-        # Update the filename which serves as the display name
-        file_info["filename"] = new_name
+        # Verify the struct exists by searching RTSTRUCT files
+        for fid, finfo in session["files"].items():
+            if finfo["patient_id"] != patient_id or finfo["modality"] != "RTSTRUCT":
+                continue
+            raw_info = session["raw_data"].get(fid)
+            if not raw_info or "raw_bytes" not in raw_info:
+                continue
+            try:
+                ds = pydicom.dcmread(
+                    pydicom.filebase.DicomBytesIO(raw_info["raw_bytes"]),
+                    force=True
+                )
+                if not hasattr(ds, "StructureSetROISequence"):
+                    continue
+                for roi in ds.StructureSetROISequence:
+                    if str(roi.ROINumber) == struct_key:
+                        session["struct_names"][struct_key] = new_name
+                        return {"key": struct_key, "name": new_name}
+            except Exception:
+                continue
 
-        # Update metadata if it has a StructureName field
-        if "metadata" in file_info and isinstance(file_info["metadata"], dict):
-            if "StructureName" in file_info["metadata"]:
-                file_info["metadata"]["StructureName"] = new_name
-
-        return {"key": struct_key, "name": new_name}
+        return None
 
 
 # Shared singleton instance so all services access the same sessions dict

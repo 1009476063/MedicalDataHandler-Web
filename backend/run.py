@@ -16,6 +16,9 @@ def main():
                         help="Number of uvicorn workers. "
                              "Note: >1 requires external session store (Redis/DB) "
                              "since in-memory sessions are per-process.")
+    parser.add_argument("--http", default="h11",
+                        choices=["h11", "httptools", "h2"],
+                        help="HTTP protocol: h11 (default), httptools, or h2 (HTTP/2)")
     args = parser.parse_args()
 
     uvicorn.run(
@@ -24,6 +27,7 @@ def main():
         port=args.port,
         workers=args.workers,
         log_level="info",
+        http=args.http,
     )
 
 

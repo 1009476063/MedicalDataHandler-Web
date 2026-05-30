@@ -13,6 +13,7 @@ from fastapi import APIRouter, HTTPException
 from fastapi.responses import FileResponse, StreamingResponse
 from pydantic import BaseModel
 
+from app.models.response import ApiResponse
 from app.services import dicom_converter_service as converter
 from app.services.dicom_service import dicom_service, MAX_CONCURRENT_UPLOADS, MAX_CONCURRENT_CONVERSIONS
 from app.services.log_service import log_service
@@ -41,7 +42,7 @@ class AnonymizeRequest(BaseModel):
 async def scan_series(req: ScanRequest):
     """Scan all DICOM series for a patient and return series info."""
     result = converter.scan_patient_series(req.session_id, req.patient_id)
-    return result
+    return ApiResponse(success=True, data=result)
 
 
 @router.post("/convert")
@@ -59,7 +60,7 @@ async def convert_to_nifti(req: ConvertRequest):
         req.modality,
         req.selected_series,
     )
-    return result
+    return ApiResponse(success=True, data=result)
 
 
 @router.post("/convert-stream")
@@ -143,7 +144,7 @@ async def anonymize_dicoms(req: AnonymizeRequest):
         req.session_id,
         req.patient_id,
     )
-    return result
+    return ApiResponse(success=True, data=result)
 
 
 @router.get("/download/{session_id}/{filename}")
@@ -181,7 +182,7 @@ async def get_results(session_id: str, patient_id: str):
     if not str(resolved).startswith(str(uploads_root)):
         raise HTTPException(status_code=400, detail="Invalid path")
     if not output_dir.exists():
-        return {"files": []}
+        return ApiResponse(success=True, data={"files": []})
 
     files = []
     for f in sorted(output_dir.iterdir()):
@@ -190,15 +191,15 @@ async def get_results(session_id: str, patient_id: str):
                 "name": f.name,
                 "size": f.stat().st_size,
             })
-    return {"files": files}
+    return ApiResponse(success=True, data={"files": files})
 
 
 @router.get("/queue-status")
 async def queue_status():
     """Return available concurrency slots for uploads and conversions."""
-    return {
+    return ApiResponse(success=True, data={
         "uploads_available": dicom_service._upload_slots,
         "conversions_available": dicom_service._conversion_slots,
         "max_uploads": MAX_CONCURRENT_UPLOADS,
         "max_conversions": MAX_CONCURRENT_CONVERSIONS,
-    }
+    })

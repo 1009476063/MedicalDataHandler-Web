@@ -87,6 +87,20 @@
 - **无需后端** — 无需运行后端服务器
 - **拖拽上传** — 直接拖拽 DICOM 文件到查看器
 
+### PWA 与离线支持
+- **渐进式 Web 应用** — 通过 manifest.json 支持桌面和移动端安装
+- **Service Worker 缓存** — 使用 SHA-256 请求体哈希作为缓存键自动缓存切片响应
+- **离线重复访问** — 之前查看的切片可从缓存离线获取
+
+### WebWorker 渲染与解析
+- **OffscreenCanvas 渲染** — 在专用 WebWorker 中完成影像合成和窗宽窗位调整（不阻塞 UI）
+- **后台 DICOM 解析** — 大量上传时批量元数据提取卸载到 WebWorker
+- **主线程降级** — WebWorker 不可用时优雅降级到主线程
+
+### HTTP/2 多路复用
+- **HTTP/2 协议** — 多路复用连接，切片/体积请求无队头阻塞
+- **自动降级** — h2 不可用时自动降级到 HTTP/1.1
+
 ### 认证（OIDC）
 - **OpenID Connect** — 支持任何 OIDC 提供商（Keycloak、Auth0 等）
 - **JWT 令牌** — 安全的基于令牌的会话管理
@@ -99,6 +113,10 @@
 - **磁盘像素存储** — 上传后立即保存像素数据为 `.npy` 文件
 - **资源限制** — 单会话：10,000 文件，最大 2 GB
 - **会话清理** — 15 分钟 TTL + 2 分钟清理周期
+- **流式体积传输** — 大体积以 4MB 分块流式传输，避免超时
+- **切片预加载** — 后台预加载相邻切片，实现平滑导航
+- **虚拟滚动** — DICOM 标签表仅渲染可见行，支持大量标签
+- **LRU 缓存** — 体积、结构、剂量使用有界内存缓存
 
 ### 多格式支持
 | 格式 | 扩展名 | 读取库 |
@@ -114,6 +132,7 @@
 - **响应式布局** — 桌面和移动端友好界面
 - **实时活动日志** — 跟踪所有处理操作
 - **可配置设置** — 窗位预设、叠加默认值、交互速度
+- **安全加固** — SSRF 防护、路径遍历防护、速率限制、安全 CORS
 
 ## 架构
 
@@ -162,7 +181,8 @@ MedVista/
 │   │   ├── components/
 │   │   │   ├── layout/           # AppLayout、AppSidebar、AppHeader、AuthGuard
 │   │   │   ├── viewer/           # Cornerstone3DViewer、MeasurementToolbar/Panel、
-│   │   │   │                     # SegmentationPanel、TimeSlider
+│   │   │   │                     # SegmentationPanel、TimeSlider、ViewerHeader、
+│   │   │   │                     # ViewerSidebar、ImageSliceViewer（Canvas2D）
 │   │   │   ├── pacs/             # PacsConnectionDialog、PacsBrowser
 │   │   │   └── common/           # DataTable、StatusBadge 等
 │   │   ├── composables/
@@ -176,7 +196,12 @@ MedVista/
 │   │   │   └── useClientMode     # 后端可用性检测
 │   │   ├── utils/
 │   │   │   ├── cornerstoneVolumeLoader.ts  # 自定义体积加载器
-│   │   │   └── clientDicomLoader.ts        # 客户端 DICOM 解析器
+│   │   │   ├── clientDicomLoader.ts        # 客户端 DICOM 解析器
+│   │   │   ├── dicomClientParser.ts        # 客户端 DICOM 解析（WebWorker）
+│   │   │   └── webglDetector.ts            # GPU 能力检测
+│   │   ├── workers/
+│   │   │   ├── render.worker.ts            # OffscreenCanvas 渲染
+│   │   │   └── dicom-parse.worker.ts       # 后台 DICOM 解析
 │   │   ├── stores/               # Pinia 状态管理
 │   │   ├── i18n/                 # 英文 + 中文翻译
 │   │   ├── router/               # Vue Router + 认证守卫

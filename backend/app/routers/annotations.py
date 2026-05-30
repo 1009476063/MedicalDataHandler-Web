@@ -6,6 +6,8 @@ import json
 import csv
 import io
 
+from app.models.response import ApiResponse
+
 router = APIRouter()
 
 # In-memory annotation store per session
@@ -29,13 +31,13 @@ class AnnotationBatch(BaseModel):
 async def save_annotations(batch: AnnotationBatch):
     key = f"{batch.session_id}:{batch.series_uid}"
     _annotations[key] = [a.model_dump() for a in batch.annotations]
-    return {"status": "ok", "count": len(batch.annotations)}
+    return ApiResponse(success=True, data={"count": len(batch.annotations)})
 
 
 @router.get("/api/annotations/{session_id}/{series_uid}")
 async def load_annotations(session_id: str, series_uid: str):
     key = f"{session_id}:{series_uid}"
-    return _annotations.get(key, [])
+    return ApiResponse(success=True, data=_annotations.get(key, []))
 
 
 @router.get("/api/annotations/{session_id}/{series_uid}/export")

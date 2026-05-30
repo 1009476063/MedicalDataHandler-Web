@@ -39,6 +39,17 @@ export interface ParseResult {
   failedCount: number
 }
 
+// WebWorker for background DICOM parsing (falls back to main thread)
+let parseWorker: Worker | null = null
+let workerReady = false
+
+try {
+  parseWorker = new Worker(new URL('../workers/dicom-parse.worker.ts', import.meta.url), { type: 'module' })
+  workerReady = true
+} catch {
+  parseWorker = null
+}
+
 function getTagString(dataSet: dicomParser.DataSet, tag: string): string {
   try {
     return dataSet.string(tag) || ''
@@ -83,53 +94,55 @@ export async function parseDicomFiles(files: File[]): Promise<ParseResult> {
   let parsedCount = 0
   let failedCount = 0
 
-  // Parse files in parallel batches of 20 for performance
-  const BATCH_SIZE = 20
-  for (let i = 0; i < files.length; i += BATCH_SIZE) {
-    const batch = files.slice(i, i + BATCH_SIZE)
-    const results = await Promise.all(batch.map(f => parseDicomFile(f)))
+  // Use WebWorker for batch parsing if available
+  if (workerReady && parseWorker && files.length > 5) {
+    const BATCH_SIZE = 50
+    for (let i = 0; i < files.length; i += BATCH_SIZE) {
+      const batch = files.slice(i, i + BATCH_SIZE)
+      const buffers = await Promise.all(batch.map(async f => ({
+        name: f.name,
+        buffer: await f.arrayBuffer(),
+      })))
 
-    for (let j = 0; j < results.length; j++) {
-      const meta = results[j]
-      const file = batch[j]
-      totalSize += file.size
+      const results = await new Promise<(ClientDicomMetadata | null)[]>((resolve, reject) => {
+        const id = Date.now() + i
+        const timeout = setTimeout(() => {
+          parseWorker!.removeEventListener('message', handler)
+          reject(new Error(`Worker batch ${id} timed out`))
+        }, 30000)
+        const handler = (e: MessageEvent) => {
+          if (e.data.type === 'batch-parsed' && e.data.id === id) {
+            clearTimeout(timeout)
+            parseWorker!.removeEventListener('message', handler)
+            resolve(e.data.results)
+          }
+        }
+        parseWorker!.addEventListener('message', handler)
+        parseWorker!.postMessage({ type: 'parse-batch', id, files: buffers })
+      }).catch(() => [] as (ClientDicomMetadata | null)[])
 
-      if (!meta) {
-        failedCount++
-        continue
+      for (let j = 0; j < results.length; j++) {
+        const meta = results[j]
+        totalSize += batch[j].size
+        if (!meta) { failedCount++; continue }
+        parsedCount++
+        addToPreview(patients, meta)
       }
-      parsedCount++
+    }
+  } else {
+    // Fallback: main thread parsing in batches
+    const BATCH_SIZE = 20
+    for (let i = 0; i < files.length; i += BATCH_SIZE) {
+      const batch = files.slice(i, i + BATCH_SIZE)
+      const results = await Promise.all(batch.map(f => parseDicomFile(f)))
 
-      const pid = meta.patientId || 'unknown'
-      if (!patients.has(pid)) {
-        patients.set(pid, {
-          name: meta.patientName || 'Unknown',
-          patientId: pid,
-          studies: new Map(),
-        })
+      for (let j = 0; j < results.length; j++) {
+        const meta = results[j]
+        totalSize += batch[j].size
+        if (!meta) { failedCount++; continue }
+        parsedCount++
+        addToPreview(patients, meta)
       }
-      const patient = patients.get(pid)!
-
-      const studyKey = meta.studyDescription || 'Unknown Study'
-      if (!patient.studies.has(studyKey)) {
-        patient.studies.set(studyKey, {
-          description: meta.studyDescription,
-          date: meta.studyDate,
-          series: new Map(),
-        })
-      }
-      const study = patient.studies.get(studyKey)!
-
-      const seriesKey = meta.seriesInstanceUID || meta.seriesDescription || 'unknown'
-      if (!study.series.has(seriesKey)) {
-        study.series.set(seriesKey, {
-          description: meta.seriesDescription,
-          modality: meta.modality,
-          fileCount: 0,
-          seriesUID: meta.seriesInstanceUID,
-        })
-      }
-      study.series.get(seriesKey)!.fileCount++
     }
   }
 
@@ -140,4 +153,37 @@ export async function parseDicomFiles(files: File[]): Promise<ParseResult> {
     parsedCount,
     failedCount,
   }
+}
+
+function addToPreview(patients: Map<string, PatientPreview>, meta: ClientDicomMetadata) {
+  const pid = meta.patientId || 'unknown'
+  if (!patients.has(pid)) {
+    patients.set(pid, {
+      name: meta.patientName || 'Unknown',
+      patientId: pid,
+      studies: new Map(),
+    })
+  }
+  const patient = patients.get(pid)!
+
+  const studyKey = meta.studyDescription || 'Unknown Study'
+  if (!patient.studies.has(studyKey)) {
+    patient.studies.set(studyKey, {
+      description: meta.studyDescription,
+      date: meta.studyDate,
+      series: new Map(),
+    })
+  }
+  const study = patient.studies.get(studyKey)!
+
+  const seriesKey = meta.seriesInstanceUID || meta.seriesDescription || 'unknown'
+  if (!study.series.has(seriesKey)) {
+    study.series.set(seriesKey, {
+      description: meta.seriesDescription,
+      modality: meta.modality,
+      fileCount: 0,
+      seriesUID: meta.seriesInstanceUID,
+    })
+  }
+  study.series.get(seriesKey)!.fileCount++
 }

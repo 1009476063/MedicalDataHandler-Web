@@ -1,4 +1,4 @@
-from fastapi import APIRouter, UploadFile, File, HTTPException
+from fastapi import APIRouter, UploadFile, File, HTTPException, Request
 from fastapi.responses import StreamingResponse, Response
 from pydantic import BaseModel, Field
 from typing import Optional
@@ -9,6 +9,8 @@ import json
 import asyncio
 from pathlib import Path
 
+from app.models.response import ApiResponse
+from app.utils.rate_limit import limiter
 from app.services.dicom_service import dicom_service, MAX_CONCURRENT_UPLOADS
 from app.services.image_builder import ImageBuilder
 from app.services.rt_struct_builder import RTStructBuilder
@@ -48,7 +50,8 @@ class VolumeRequest(BaseModel):
 
 
 @router.post("/upload", response_model=UploadResponse)
-async def upload_dicom(files: list[UploadFile] = File(...)):
+@limiter.limit("10/minute")
+async def upload_dicom(request: Request, files: list[UploadFile] = File(...)):
     if dicom_service._upload_slots <= 0:
         raise HTTPException(status_code=429, detail="Server busy, too many concurrent uploads. Try again later.")
     await dicom_service.upload_semaphore.acquire()
@@ -65,26 +68,26 @@ async def upload_dicom(files: list[UploadFile] = File(...)):
 
 @router.get("/patients/{session_id}")
 async def get_patients(session_id: str):
-    patients = dicom_service.get_patients(session_id)
+    patients = await asyncio.to_thread(dicom_service.get_patients, session_id)
     if not patients:
         raise HTTPException(status_code=404, detail="Session not found")
-    return {"patients": patients}
+    return ApiResponse(success=True, data={"patients": patients})
 
 
 @router.get("/patient/{session_id}/{patient_id}")
 async def get_patient_detail(session_id: str, patient_id: str):
-    detail = dicom_service.get_patient_detail(session_id, patient_id)
+    detail = await asyncio.to_thread(dicom_service.get_patient_detail, session_id, patient_id)
     if not detail:
         raise HTTPException(status_code=404, detail="Patient not found")
-    return detail
+    return ApiResponse(success=True, data=detail)
 
 
 @router.get("/metadata/{session_id}/{file_id}")
 async def get_dicom_metadata(session_id: str, file_id: str):
-    metadata = dicom_service.get_file_metadata(session_id, file_id)
+    metadata = await asyncio.to_thread(dicom_service.get_file_metadata, session_id, file_id)
     if not metadata:
         raise HTTPException(status_code=404, detail="File not found")
-    return metadata
+    return ApiResponse(success=True, data=metadata)
 
 
 @router.post("/slice")
@@ -97,21 +100,33 @@ async def get_slice(req: SliceRequest):
     )
     if slice_data is None:
         raise HTTPException(status_code=404, detail="Slice not found")
-    return slice_data
+
+    # Prefetch adjacent slices in background (non-blocking)
+    max_slice = slice_data.get("max_slice", 0)
+    if max_slice > 1:
+        asyncio.get_running_loop().run_in_executor(
+            None,
+            image_builder.prefetch_adjacent_slices,
+            req.session_id, req.patient_id, req.series_uid,
+            req.orientation, req.slice_index, max_slice,
+            req.window_center, req.window_width,
+        )
+
+    return ApiResponse(success=True, data=slice_data)
 
 
 @router.get("/series-info/{session_id}/{patient_id}/{series_uid}")
 async def get_series_info(session_id: str, patient_id: str, series_uid: str):
-    info = image_builder.get_series_info(session_id, patient_id, series_uid)
+    info = await asyncio.to_thread(image_builder.get_series_info, session_id, patient_id, series_uid)
     if not info:
         raise HTTPException(status_code=404, detail="Series not found")
-    return info
+    return ApiResponse(success=True, data=info)
 
 
 @router.get("/structs/{session_id}/{patient_id}")
 async def get_rt_structs(session_id: str, patient_id: str):
     structs = await asyncio.to_thread(struct_builder.get_structs, session_id, patient_id)
-    return {"structures": structs or []}
+    return ApiResponse(success=True, data={"structures": structs or []})
 
 
 @router.get("/struct-mask/{session_id}/{patient_id}/{struct_key}/{slice_index}")
@@ -125,7 +140,7 @@ async def get_struct_mask(
     )
     if mask is None:
         raise HTTPException(status_code=404, detail="Mask not found")
-    return mask
+    return ApiResponse(success=True, data=mask)
 
 
 @router.get("/dose/{session_id}/{patient_id}/{dose_uid}/{slice_index}")
@@ -139,13 +154,13 @@ async def get_dose_slice(
     )
     if dose is None:
         raise HTTPException(status_code=404, detail="Dose not found")
-    return dose
+    return ApiResponse(success=True, data=dose)
 
 
 @router.get("/dose-info/{session_id}/{patient_id}")
 async def get_dose_info(session_id: str, patient_id: str):
-    info = dose_builder.get_dose_info(session_id, patient_id)
-    return {"doses": info or []}
+    info = await asyncio.to_thread(dose_builder.get_dose_info, session_id, patient_id)
+    return ApiResponse(success=True, data={"doses": info or []})
 
 
 @router.get("/roi-bounds/{session_id}/{patient_id}/{struct_key}")
@@ -155,13 +170,13 @@ async def get_roi_bounds(session_id: str, patient_id: str, struct_key: str):
     )
     if bounds is None:
         raise HTTPException(status_code=404, detail="ROI not found")
-    return bounds
+    return ApiResponse(success=True, data=bounds)
 
 
 @router.get("/plans/{session_id}/{patient_id}")
 async def get_rt_plans(session_id: str, patient_id: str):
-    plans = dicom_service.get_rt_plans(session_id, patient_id)
-    return {"plans": plans or []}
+    plans = await asyncio.to_thread(dicom_service.get_rt_plans, session_id, patient_id)
+    return ApiResponse(success=True, data={"plans": plans or []})
 
 
 @router.delete("/session/{session_id}")
@@ -169,7 +184,7 @@ async def delete_session(session_id: str):
     cleaned = dicom_service.cleanup_session(session_id)
     if not cleaned:
         raise HTTPException(status_code=404, detail="Session not found")
-    return {"status": "cleaned", "session_id": session_id}
+    return ApiResponse(success=True, data={"status": "cleaned", "session_id": session_id})
 
 
 @router.post("/slice-binary")
@@ -205,7 +220,10 @@ async def get_slice_binary(req: SliceRequest):
 
 @router.post("/volume-binary")
 async def get_volume_binary(req: VolumeRequest):
-    """Return raw 3D volume as binary for Cornerstone3D rendering."""
+    """Return raw 3D volume as binary for Cornerstone3D rendering.
+
+    Uses chunked streaming for volumes >100MB to avoid single-response timeouts.
+    """
     result = await asyncio.to_thread(
         image_builder.get_volume_binary,
         req.session_id, req.patient_id, req.series_uid,
@@ -213,13 +231,36 @@ async def get_volume_binary(req: VolumeRequest):
     if result is None:
         raise HTTPException(status_code=404, detail="Volume not found")
 
-    return Response(
-        content=result["data"],
+    data = result["data"]
+    total_size = len(data)
+    CHUNK_SIZE = 4 * 1024 * 1024  # 4MB chunks
+
+    headers = {
+        "X-Volume-Shape": json.dumps(result["shape"]),
+        "X-Volume-Spacing": json.dumps(result["spacing"]),
+        "X-Volume-Origin": json.dumps(result["origin"]),
+        "X-Volume-Dtype": result["dtype"],
+        "Content-Length": str(total_size),
+    }
+
+    if total_size <= CHUNK_SIZE:
+        # Small volume: send as single response
+        return Response(
+            content=data,
+            media_type="application/octet-stream",
+            headers=headers,
+        )
+
+    # Large volume: stream in chunks
+    async def chunk_generator():
+        offset = 0
+        while offset < total_size:
+            end = min(offset + CHUNK_SIZE, total_size)
+            yield data[offset:end]
+            offset = end
+
+    return StreamingResponse(
+        chunk_generator(),
         media_type="application/octet-stream",
-        headers={
-            "X-Volume-Shape": json.dumps(result["shape"]),
-            "X-Volume-Spacing": json.dumps(result["spacing"]),
-            "X-Volume-Origin": json.dumps(result["origin"]),
-            "X-Volume-Dtype": result["dtype"],
-        },
+        headers=headers,
     )

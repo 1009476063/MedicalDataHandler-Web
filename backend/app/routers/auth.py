@@ -1,7 +1,9 @@
 """Auth router — OIDC login flow, token management, user info."""
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel
 
+from app.models.response import ApiResponse
+from app.utils.rate_limit import limiter
 from app.services.auth_service import (
     is_auth_enabled,
     get_oidc_discovery,
@@ -42,18 +44,19 @@ class UserInfo(BaseModel):
 @router.get("/config")
 async def auth_config():
     if not is_auth_enabled():
-        return {"enabled": False}
+        return ApiResponse(success=True, data={"enabled": False})
     discovery = await get_oidc_discovery()
-    return {
+    return ApiResponse(success=True, data={
         "enabled": True,
         "authorizationEndpoint": discovery.get("authorization_endpoint", ""),
         "clientId": OIDC_CLIENT_ID,
         "redirectUri": OIDC_REDIRECT_URI,
-    }
+    })
 
 
 @router.post("/login", response_model=TokenResponse)
-async def login(req: LoginRequest):
+@limiter.limit("15/minute")
+async def login(request: Request, req: LoginRequest):
     if not is_auth_enabled():
         user_info = {"sub": "local", "name": "Local User", "email": "local@localhost"}
         token = create_access_token(user_info)
@@ -104,4 +107,4 @@ async def me(user: dict = Depends(get_current_user)):
 
 @router.post("/logout")
 async def logout():
-    return {"status": "ok"}
+    return ApiResponse(success=True, data={"status": "ok"})

@@ -1,31 +1,59 @@
 <template>
   <div class="h-full flex flex-col animate-fade-in">
-    <div class="flex items-center justify-between px-4 py-2 border-b border-accent-200 dark:border-accent-700 bg-white dark:bg-accent-900">
-      <h1 class="text-lg font-semibold text-accent-900 dark:text-white">{{ $t('viewer.title') }}</h1>
-      <div class="flex items-center gap-2">
-        <button
-          class="p-1.5 rounded-lg hover:bg-accent-100 dark:hover:bg-accent-800 text-accent-600 dark:text-accent-400 transition-colors"
-          :title="$t('viewer.screenshot')"
-          @click="captureScreenshot"
-        >
-          <CameraIcon class="w-4 h-4" />
-        </button>
-      </div>
+    <ViewerHeader
+      :gpu-info="gpuInfo"
+      :canvas-mode="useCanvasFallback"
+      :client-mode="appStore.isClientMode"
+      @screenshot="captureScreenshot"
+    />
+
+    <!-- Restricted mode banner -->
+    <div
+      v-if="useCanvasFallback"
+      class="flex items-center gap-2 px-3 py-1.5 bg-amber-50 dark:bg-amber-900/20 border-b border-amber-200 dark:border-amber-800 text-amber-800 dark:text-amber-200 text-xs"
+    >
+      <span class="font-medium">受限模式</span>
+      <span>3D 渲染不可用。推荐使用 <strong>Chrome / Edge / Firefox</strong> 等支持 WebGL2 的浏览器以获得完整功能。</span>
     </div>
 
     <!-- Measurement Toolbar -->
     <MeasurementToolbar
-      :active-tool="tools.activeTool.value"
-      :crosshairs-enabled="true"
-      @select-tool="tools.setActive"
+      :canvas-mode="useCanvasFallback"
+      :active-tool="useCanvasFallback ? (canvasTools.activeTool.value ?? 'Length') : tools.activeTool.value"
+      :crosshairs-enabled="!useCanvasFallback"
+      @select-tool="useCanvasFallback ? (canvasTools.activeTool.value = $event as 'Length' | 'Probe') : tools.setActive($event)"
       @toggle-crosshairs="() => {}"
-      @clear-all="tools.clearAll"
+      @clear-all="useCanvasFallback ? canvasTools.clearAnnotations() : tools.clearAll"
       @export-csv="exportMeasurementsCsv"
     />
 
     <div class="flex-1 flex min-h-0">
       <div class="flex-1 p-2 min-w-0">
-        <div class="grid grid-cols-1 md:grid-cols-3 gap-2 h-full">
+        <!-- Canvas2D fallback mode -->
+        <div v-if="useCanvasFallback" class="grid grid-cols-1 md:grid-cols-3 gap-2 h-full">
+          <ImageSliceViewer
+            v-for="orientation in ['axial', 'sagittal', 'coronal']"
+            :key="orientation"
+            :pixel-data="canvasSliceData[orientation]"
+            :width="512"
+            :height="512"
+            :label="orientation"
+            :slice-index="canvasSliceIndex[orientation]"
+            :max-slice="canvasMaxSlice[orientation]"
+            :window-center="windowCenter"
+            :window-width="windowWidth"
+            :loading="canvasLoading"
+            :active-tool="canvasTools.activeTool.value"
+            :annotations="canvasTools.annotations.value"
+            :current-points="canvasTools.currentPoints.value"
+            :overlays="canvasOverlays[orientation] || []"
+            :spacing="seriesInfo?.spacing ? { x: seriesInfo.spacing[0] ?? 1, y: seriesInfo.spacing[1] ?? 1 } : null"
+            @slice-change="(delta: number) => handleCanvasSliceChange(orientation, canvasSliceIndex[orientation] + delta)"
+            @click="(x: number, y: number) => handleCanvasAnnotateClick(x, y, orientation)"
+          />
+        </div>
+        <!-- Cornerstone3D WebGL mode -->
+        <div v-else class="grid grid-cols-1 md:grid-cols-3 gap-2 h-full">
           <div class="min-h-[200px]">
             <Cornerstone3DViewer
               ref="axialViewerRef"
@@ -66,282 +94,44 @@
       </div>
 
       <!-- Sidebar -->
-      <div class="w-64 border-l border-accent-200 dark:border-accent-700 bg-white dark:bg-accent-900 overflow-y-auto hidden lg:block">
-        <div class="p-4 space-y-4">
-          <!-- Patient -->
-          <div>
-            <h3 class="text-sm font-medium text-accent-700 dark:text-accent-300 mb-2">{{ $t('viewer.patient') }}</h3>
-            <select
-              v-model="appStore.selectedPatientId"
-              class="w-full px-3 py-2 bg-accent-50 dark:bg-accent-800 border border-accent-200 dark:border-accent-700 rounded-lg text-sm text-accent-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary-500/50"
-              @change="onPatientChange"
-            >
-              <option value="">{{ $t('viewer.selectPatient') }}</option>
-              <option v-for="p in patients" :key="p.patient_id" :value="p.patient_id">
-                {{ p.name || p.patient_id }}
-              </option>
-            </select>
-          </div>
-
-          <!-- Series -->
-          <div v-if="seriesList.length > 0">
-            <h3 class="text-sm font-medium text-accent-700 dark:text-accent-300 mb-2">{{ $t('viewer.series') }}</h3>
-            <div class="space-y-1.5">
-              <button
-                v-for="s in seriesList"
-                :key="s.series_uid"
-                :class="[
-                  'w-full text-left px-3 py-2 rounded-lg text-sm transition-colors flex items-center gap-2',
-                  appStore.selectedSeriesUid === s.series_uid
-                    ? 'bg-primary-100 dark:bg-primary-900/30 text-primary-700 dark:text-primary-300'
-                    : 'hover:bg-accent-50 dark:hover:bg-accent-800/50 text-accent-700 dark:text-accent-300',
-                ]"
-                @click="onSeriesSelect(s.series_uid)"
-              >
-                <StatusBadge :status="s.modality" />
-                <span class="truncate">{{ s.description || s.series_uid }}</span>
-              </button>
-            </div>
-          </div>
-
-          <!-- Volume Info -->
-          <div v-if="seriesInfo">
-            <h3 class="text-sm font-medium text-accent-700 dark:text-accent-300 mb-2">{{ $t('viewer.volumeInfo') }}</h3>
-            <div class="space-y-1 text-xs text-accent-600 dark:text-accent-400">
-              <p>{{ $t('viewer.shape') }}: {{ seriesInfo.shape?.join(' x ') }}</p>
-              <p>{{ $t('viewer.spacing') }}: {{ seriesInfo.spacing?.map((s: number) => s.toFixed(2)).join(' x ') }} mm</p>
-              <p>{{ $t('viewer.range') }}: {{ seriesInfo.min?.toFixed(0) }} ~ {{ seriesInfo.max?.toFixed(0) }}</p>
-              <p>{{ $t('viewer.mean') }}: {{ seriesInfo.mean?.toFixed(1) }}</p>
-            </div>
-          </div>
-
-          <!-- Window/Level -->
-          <div>
-            <h3 class="text-sm font-medium text-accent-700 dark:text-accent-300 mb-2">{{ $t('viewer.windowLevel') }}</h3>
-            <div class="space-y-2">
-              <div class="flex items-center gap-2">
-                <label class="text-xs text-accent-500 w-8">W</label>
-                <input
-                  v-model.number="windowWidth"
-                  type="range"
-                  :min="1"
-                  :max="4000"
-                  class="flex-1 h-1.5 accent-primary-500"
-                />
-                <span class="text-xs text-accent-600 dark:text-accent-400 w-12 text-right">{{ windowWidth }}</span>
-              </div>
-              <div class="flex items-center gap-2">
-                <label class="text-xs text-accent-500 w-8">L</label>
-                <input
-                  v-model.number="windowCenter"
-                  type="range"
-                  :min="-1000"
-                  :max="3000"
-                  class="flex-1 h-1.5 accent-primary-500"
-                />
-                <span class="text-xs text-accent-600 dark:text-accent-400 w-12 text-right">{{ windowCenter }}</span>
-              </div>
-            </div>
-            <div class="flex flex-wrap gap-1 mt-2">
-              <button
-                v-for="preset in windowPresets"
-                :key="preset.name"
-                class="px-2 py-1 text-xs rounded bg-accent-100 dark:bg-accent-800 text-accent-700 dark:text-accent-300 hover:bg-accent-200 dark:hover:bg-accent-700 transition-colors"
-                @click="applyPreset(preset)"
-              >
-                {{ preset.name }}
-              </button>
-            </div>
-          </div>
-
-          <!-- Structures (Overlay Controls) -->
-          <div v-if="structs.length > 0">
-            <h3 class="text-sm font-medium text-accent-700 dark:text-accent-300 mb-2">{{ $t('viewer.structureOverlays') }}</h3>
-            <div class="space-y-1.5">
-              <div
-                v-for="(s, i) in structs"
-                :key="s.key"
-                class="flex items-center gap-2 px-2 py-1.5 rounded text-xs text-accent-700 dark:text-accent-300 hover:bg-accent-50 dark:hover:bg-accent-800/50 cursor-pointer transition-colors"
-              >
-                <input
-                  type="checkbox"
-                  :checked="enabledStructOverlays.has(s.key)"
-                  class="rounded border-accent-300 text-primary-500 focus:ring-primary-500/50"
-                  @change="toggleStructOverlay(s.key)"
-                />
-                <input
-                  type="color"
-                  :value="structColorMap[s.key] || structColors[i % structColors.length]"
-                  class="w-5 h-5 rounded border-0 cursor-pointer flex-shrink-0"
-                  @input="(e: Event) => setStructColor(s.key, (e.target as HTMLInputElement).value)"
-                />
-                <span class="truncate flex-1">{{ s.name }}</span>
-                <span class="text-[10px] text-accent-400 px-1 py-0.5 rounded bg-accent-100 dark:bg-accent-800">
-                  {{ inferStructType(s.name) }}
-                </span>
-                <button
-                  :title="$t('viewer.centerOnRoi')"
-                  class="p-0.5 rounded hover:bg-primary-100 dark:hover:bg-primary-900/30 text-accent-400 hover:text-primary-500 transition-colors"
-                  @click.stop="centerOnRoi(s.key)"
-                >
-                  <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
-                </button>
-              </div>
-            </div>
-            <div class="mt-2 flex items-center gap-2">
-              <label class="text-xs text-accent-500">{{ $t('viewer.opacity') }}</label>
-              <input
-                v-model.number="overlayOpacity"
-                type="range"
-                :min="0.05"
-                :max="1"
-                step="0.05"
-                class="flex-1 h-1.5 accent-primary-500"
-              />
-              <span class="text-xs text-accent-600 dark:text-accent-400 w-8 text-right">{{ Math.round(overlayOpacity * 100) }}%</span>
-            </div>
-            <div class="mt-2 flex items-center gap-2">
-              <label class="text-xs text-accent-500">{{ $t('viewer.contour') }}</label>
-              <input
-                v-model.number="contourThickness"
-                type="range"
-                :min="0"
-                :max="4"
-                step="1"
-                class="flex-1 h-1.5 accent-primary-500"
-              />
-              <span class="text-xs text-accent-600 dark:text-accent-400 w-8 text-right">{{ contourThickness }}px</span>
-            </div>
-          </div>
-
-          <!-- Dose Overlays -->
-          <div v-if="doseList.length > 0">
-            <h3 class="text-sm font-medium text-accent-700 dark:text-accent-300 mb-2">{{ $t('viewer.doseOverlays') }}</h3>
-            <div class="space-y-1.5">
-              <label
-                v-for="d in doseList"
-                :key="d.file_id"
-                class="flex items-center gap-2 px-2 py-1.5 rounded text-xs text-accent-700 dark:text-accent-300 hover:bg-accent-50 dark:hover:bg-accent-800/50 cursor-pointer transition-colors"
-              >
-                <input
-                  type="checkbox"
-                  :checked="enabledDoseOverlays.has(d.file_id)"
-                  class="rounded border-accent-300 text-red-500 focus:ring-red-500/50"
-                  @change="toggleDoseOverlay(d.file_id)"
-                />
-                <span class="w-3 h-3 rounded-full flex-shrink-0 bg-red-500" />
-                <span class="truncate">{{ d.filename || d.file_id }}</span>
-              </label>
-            </div>
-            <div class="mt-2 flex items-center gap-2">
-              <label class="text-xs text-accent-500">{{ $t('viewer.opacity') }}</label>
-              <input
-                v-model.number="doseOpacity"
-                type="range"
-                :min="0.05"
-                :max="1"
-                step="0.05"
-                class="flex-1 h-1.5 accent-red-500"
-              />
-              <span class="text-xs text-accent-600 dark:text-accent-400 w-8 text-right">{{ Math.round(doseOpacity * 100) }}%</span>
-            </div>
-          </div>
-
-          <!-- Segmentation Overlays -->
-          <SegmentationPanel
-            :seg-files="seg.segFiles.value"
-            :overlays="seg.overlays.value"
-            :loading="seg.loading.value"
-            :error="seg.error.value"
-            @toggle="(sf, sn, lbl) => seg.toggleOverlay(sf, sn, lbl)"
-            @opacity="(fid, sn, op) => seg.updateOpacity(fid, sn, op)"
-            @clear-all="seg.clearOverlays"
-          />
-
-          <!-- 4D Time Slider -->
-          <TimeSlider
-            v-if="fourD.is4D.value"
-            :time-points="fourD.timePoints.value"
-            :current-time-point="fourD.currentTimePoint.value"
-            :playing="fourD.playing.value"
-            :fps="fourD.fps.value"
-            @step-forward="fourD.stepForward(appStore.selectedPatientId!, appStore.selectedSeriesUid!)"
-            @step-backward="fourD.stepBackward(appStore.selectedPatientId!, appStore.selectedSeriesUid!)"
-            @play="fourD.play(appStore.selectedPatientId!, appStore.selectedSeriesUid!)"
-            @pause="fourD.pause"
-            @update-fps="(f) => fourD.fps.value = f"
-            @change-time-point="(pos) => { fourD.setTimePoint(pos); fourD.loadTimePoint(appStore.selectedPatientId!, appStore.selectedSeriesUid!, pos) }"
-          />
-
-          <!-- Orientation Label Color -->
-          <div>
-            <h3 class="text-sm font-medium text-accent-700 dark:text-accent-300 mb-2">{{ $t('viewer.orientationLabels') }}</h3>
-            <div class="flex items-center gap-2">
-              <label class="text-xs text-accent-500">{{ $t('viewer.color') }}</label>
-              <input
-                v-model="orientationLabelColor"
-                type="color"
-                class="w-6 h-6 rounded border-0 cursor-pointer"
-              />
-              <span class="text-xs text-accent-600 dark:text-accent-400">{{ orientationLabelColor }}</span>
-            </div>
-          </div>
-
-          <!-- DICOM Tag Inspection -->
-          <div>
-            <button
-              class="w-full flex items-center justify-between text-sm font-medium text-accent-700 dark:text-accent-300 mb-2"
-              @click="showDicomTags = !showDicomTags"
-            >
-              <span>{{ $t('viewer.dicomTags') }}</span>
-              <svg :class="['w-4 h-4 transition-transform', showDicomTags ? 'rotate-180' : '']" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
-              </svg>
-            </button>
-            <div v-if="showDicomTags" class="space-y-2">
-              <input
-                v-model="dicomTagSearch"
-                type="text"
-                :placeholder="$t('viewer.searchTags')"
-                class="w-full px-2 py-1.5 text-xs bg-accent-50 dark:bg-accent-800 border border-accent-200 dark:border-accent-700 rounded-lg text-accent-900 dark:text-white placeholder-accent-400 focus:outline-none focus:ring-1 focus:ring-primary-500/50"
-              />
-              <div class="max-h-48 overflow-y-auto space-y-0.5 text-[11px] font-mono">
-                <div
-                  v-for="(tag, i) in filteredDicomTags"
-                  :key="i"
-                  class="px-1.5 py-0.5 rounded hover:bg-accent-100 dark:hover:bg-accent-800/50"
-                >
-                  <span class="text-accent-400">{{ tag.tag }}</span>
-                  <span class="text-accent-600 dark:text-accent-300 ml-1">{{ tag.name }}</span>
-                  <span class="text-accent-500 ml-1">[{{ tag.vr }}]</span>
-                  <p class="text-accent-700 dark:text-accent-200 truncate">{{ tag.value }}</p>
-                </div>
-                <div v-if="filteredDicomTags.length === 0" class="text-accent-400 text-center py-2">
-                  {{ $t('viewer.noTagsFound') }}
-                </div>
-              </div>
-              <p class="text-[10px] text-accent-400 text-right">{{ filteredDicomTags.length }} / {{ dicomTags.length }} tags</p>
-            </div>
-          </div>
-
-          <!-- Measurements -->
-          <MeasurementPanel :measurements="tools.measurements.value" />
-
-          <!-- Delete Patient -->
-          <div v-if="appStore.selectedPatientId">
-            <h3 class="text-sm font-medium text-accent-700 dark:text-accent-300 mb-2">{{ $t('viewer.sessionActions') }}</h3>
-            <button
-              class="w-full px-3 py-2 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg text-sm text-red-600 dark:text-red-400 hover:bg-red-100 dark:hover:bg-red-900/30 transition-colors"
-              @click="confirmDeletePatient"
-            >
-              {{ $t('viewer.removePatient') }}
-            </button>
-          </div>
-        </div>
-      </div>
+      <ViewerSidebar
+        :window-center="windowCenter"
+        :window-width="windowWidth"
+        :window-presets="windowPresets"
+        :series-info="seriesInfo"
+        :structs="structs"
+        :dose-list="doseList"
+        :enabled-struct-overlays="enabledStructOverlays"
+        :enabled-dose-overlays="enabledDoseOverlays"
+        :overlay-opacity="overlayOpacity"
+        :dose-opacity="doseOpacity"
+        :contour-thickness="contourThickness"
+        :struct-color-map="structColorMap"
+        :orientation-label-color="orientationLabelColor"
+        :show-dicom-tags="showDicomTags"
+        :dicom-tag-search="dicomTagSearch"
+        :dicom-tags="dicomTags"
+        :filtered-dicom-tags="filteredDicomTags"
+        @patient-change="onPatientChange"
+        @series-select="onSeriesSelect"
+        @apply-preset="applyPreset"
+        @toggle-struct-overlay="toggleStructOverlay"
+        @set-struct-color="setStructColor"
+        @center-on-roi="centerOnRoi"
+        @toggle-dose-overlay="toggleDoseOverlay"
+        @confirm-delete-patient="confirmDeletePatient"
+        @toggle-dicom-tags="showDicomTags = !showDicomTags"
+        @update:window-width="windowWidth = $event"
+        @update:window-center="windowCenter = $event"
+        @update:overlay-opacity="overlayOpacity = $event"
+        @update:dose-opacity="doseOpacity = $event"
+        @update:contour-thickness="contourThickness = $event"
+        @update:orientation-label-color="orientationLabelColor = $event"
+        @update:dicom-tag-search="dicomTagSearch = $event"
+      />
     </div>
 
-    <div v-if="!appStore.sessionId" class="absolute inset-0 flex items-center justify-center bg-white/80 dark:bg-accent-900/80 z-10">
+    <div v-if="!appStore.sessionId && !appStore.isClientMode" class="absolute inset-0 flex items-center justify-center bg-white/80 dark:bg-accent-900/80 z-10">
       <div class="text-center">
         <EyeIcon class="w-12 h-12 text-accent-300 dark:text-accent-600 mx-auto mb-3" />
         <h3 class="text-lg font-medium text-accent-900 dark:text-white">{{ $t('viewer.noDataTitle') }}</h3>
@@ -393,15 +183,15 @@ import { useI18n } from 'vue-i18n'
 import { useAppStore } from '@/stores/app'
 import Cornerstone3DViewer from '@/components/viewer/Cornerstone3DViewer.vue'
 import MeasurementToolbar from '@/components/viewer/MeasurementToolbar.vue'
-import MeasurementPanel from '@/components/viewer/MeasurementPanel.vue'
-import SegmentationPanel from '@/components/viewer/SegmentationPanel.vue'
-import TimeSlider from '@/components/viewer/TimeSlider.vue'
-import StatusBadge from '@/components/common/StatusBadge.vue'
+import ViewerHeader from '@/components/viewer/ViewerHeader.vue'
+import ViewerSidebar from '@/components/viewer/ViewerSidebar.vue'
 import { useTools } from '@/composables/useTools'
 import { useSegmentation } from '@/composables/useSegmentation'
 import { useFourD } from '@/composables/useFourD'
+import { getSeriesImageIds } from '@/composables/useClientMode'
+import { registerClientLoaders } from '@/utils/clientDicomLoader'
 import type { SeriesInfo, StructInfo, DoseInfo } from '@/types'
-import { EyeIcon, CameraIcon } from '@heroicons/vue/24/outline'
+import { EyeIcon } from '@heroicons/vue/24/outline'
 import {
   RenderingEngine,
   Enums,
@@ -411,6 +201,9 @@ import {
 } from '@cornerstonejs/core'
 import { registerMdhVolumeLoader, buildVolumeId } from '@/utils/cornerstoneVolumeLoader'
 import { annotation } from '@cornerstonejs/tools'
+import { detectWebGL, type WebGLCapability } from '@/utils/webglDetector'
+import ImageSliceViewer from '@/components/viewer/ImageSliceViewer.vue'
+import { useCanvasTools } from '@/composables/useCanvasTools'
 
 const { t } = useI18n()
 const appStore = useAppStore()
@@ -424,6 +217,23 @@ const loading = ref(false)
 const seriesInfo = ref<SeriesInfo | null>(null)
 const structs = ref<StructInfo[]>([])
 const doseList = ref<DoseInfo[]>([])
+
+// WebGL capability and Canvas2D fallback
+const webglCap = ref<WebGLCapability | null>(null)
+const useCanvasFallback = ref(false)
+const canvasSliceData = ref<Record<string, number[][] | null>>({
+  axial: null,
+  sagittal: null,
+  coronal: null,
+})
+const canvasSliceIndex = ref<Record<string, number>>({ axial: 0, sagittal: 0, coronal: 0 })
+const canvasMaxSlice = ref<Record<string, number>>({ axial: 0, sagittal: 0, coronal: 0 })
+const canvasLoading = ref(false)
+const canvasTools = useCanvasTools()
+const canvasOverlays = ref<Record<string, Array<{ mask: number[][] | null; color: string; opacity: number; name?: string }>>>({})
+
+// GPU info from backend
+const gpuInfo = ref<{ gpu_available: boolean; gpu_name?: string } | null>(null)
 
 // Cornerstone3D engine state
 let csEngine: Types.IRenderingEngine | null = null
@@ -460,12 +270,6 @@ let confirmCallback: (() => void) | null = null
 
 const patients = computed(() => appStore.patients || [])
 
-const seriesList = computed(() => {
-  const patient = patients.value.find(p => p.patient_id === appStore.selectedPatientId)
-  if (!patient) return []
-  return patient.studies.flatMap(s => s.series || [])
-})
-
 const structColors = [
   '#ff0000', '#00ff00', '#0000ff', '#ffff00', '#ff00ff', '#00ffff',
   '#ff8000', '#8000ff', '#00ff80', '#ff0080', '#808000', '#008080',
@@ -489,26 +293,15 @@ const filteredDicomTags = computed(() => {
   )
 })
 
-// TG-263 structure type inference
-function inferStructType(name: string): string {
-  const lower = name.toLowerCase()
-  if (/^(gtv|ptv|ctv|itv|tv)\b/.test(lower)) return 'Target'
-  if (/^(body|external|skin|patient)\b/.test(lower)) return 'External'
-  if (/(lens|optic|eye|globe|retina|cochlea)/.test(lower)) return 'Sensory'
-  if (/(brain|brainstem|cord|spinal|cerebell)/.test(lower)) return 'CNS'
-  if (/(heart|lung|esophagus|trachea|larynx|pharynx|brachial)/.test(lower)) return 'Thorax'
-  if (/(liver|kidney|stomach|bowel|rectum|bladder|pancreas|spleen|adrenal|gallbladder)/.test(lower)) return 'Abdomen'
-  if (/(femoral|hip|pelvis|bone|rib|vertebra|spine)/.test(lower)) return 'Bone'
-  if (/(parotid|submandibular|sublingual|mandible|oral|lip|cheek)/.test(lower)) return 'H&N'
-  if (/(nodal|lymph|node)/.test(lower)) return 'Lymph'
-  return 'OAR'
-}
-
 function toggleStructOverlay(key: string) {
   const next = new Set(enabledStructOverlays.value)
   if (next.has(key)) next.delete(key)
   else next.add(key)
   enabledStructOverlays.value = next
+  // Load overlays for Canvas2D mode
+  if (useCanvasFallback.value) {
+    loadCanvasOverlays()
+  }
 }
 
 function toggleDoseOverlay(fileId: string) {
@@ -520,6 +313,38 @@ function toggleDoseOverlay(fileId: string) {
 
 function setStructColor(structKey: string, color: string) {
   structColorMap.value = { ...structColorMap.value, [structKey]: color }
+}
+
+// Load RT struct overlays for Canvas2D mode
+async function loadCanvasOverlays() {
+  if (!useCanvasFallback.value || !appStore.selectedSeriesUid) return
+
+  const overlays: Record<string, Array<{ mask: number[][] | null; color: string; opacity: number; name?: string }>> = {}
+  for (const orient of ['axial', 'sagittal', 'coronal'] as const) {
+    overlays[orient] = []
+  }
+
+  for (const s of structs.value) {
+    if (!enabledStructOverlays.value.has(s.key)) continue
+    const color = structColorMap.value[s.key] || structColors[structs.value.indexOf(s) % structColors.length]
+
+    for (const orient of ['axial', 'sagittal', 'coronal'] as const) {
+      try {
+        const maskData = await appStore.getStructMask(s.key, canvasSliceIndex.value[orient], orient)
+        if (maskData?.data) {
+          overlays[orient].push({
+            mask: maskData.data,
+            color,
+            opacity: overlayOpacity.value,
+            name: s.name,
+          })
+        }
+      } catch {
+        // skip on error
+      }
+    }
+  }
+  canvasOverlays.value = overlays
 }
 
 async function centerOnRoi(structKey: string) {
@@ -548,15 +373,26 @@ async function centerOnRoi(structKey: string) {
 }
 
 onMounted(async () => {
-  // Initialize Cornerstone3D
-  if (!volumeLoader) return
-  registerMdhVolumeLoader()
+  // Detect WebGL capability
+  webglCap.value = detectWebGL()
 
-  // Listen for annotation changes to refresh measurements
-  refreshOnAnnotationFn = () => tools.refreshMeasurements('axial')
-  eventTarget.addEventListener('CORNERSTONE_TOOLS_ANNOTATION_ADDED', refreshOnAnnotationFn)
-  eventTarget.addEventListener('CORNERSTONE_TOOLS_ANNOTATION_MODIFIED', refreshOnAnnotationFn)
-  eventTarget.addEventListener('CORNERSTONE_TOOLS_ANNOTATION_REMOVED', refreshOnAnnotationFn)
+  if (!webglCap.value.webgl2 && !webglCap.value.webgl1) {
+    useCanvasFallback.value = true
+  } else {
+    // Initialize Cornerstone3D
+    if (volumeLoader) {
+      registerMdhVolumeLoader()
+      if (appStore.isClientMode) {
+        registerClientLoaders()
+      }
+    }
+
+    // Listen for annotation changes to refresh measurements
+    refreshOnAnnotationFn = () => tools.refreshMeasurements('axial')
+    eventTarget.addEventListener('CORNERSTONE_TOOLS_ANNOTATION_ADDED', refreshOnAnnotationFn)
+    eventTarget.addEventListener('CORNERSTONE_TOOLS_ANNOTATION_MODIFIED', refreshOnAnnotationFn)
+    eventTarget.addEventListener('CORNERSTONE_TOOLS_ANNOTATION_REMOVED', refreshOnAnnotationFn)
+  }
 
   // Load window presets from config
   try {
@@ -573,6 +409,14 @@ onMounted(async () => {
   } catch {
     // Keep default presets on failure
   }
+
+  // Fetch GPU info from backend
+  try {
+    const resp = await fetch('/api/system/gpu-info')
+    if (resp.ok) gpuInfo.value = await resp.json()
+  } catch {
+    // ignore
+  }
 })
 
 onBeforeUnmount(() => {
@@ -588,6 +432,93 @@ onBeforeUnmount(() => {
   }
 })
 
+// WebGL context loss/restore handling
+function setupContextLossHandlers() {
+  const canvas = document.querySelector('#axial canvas') as HTMLCanvasElement | null
+  if (!canvas) return
+  canvas.addEventListener('webglcontextlost', (e) => {
+    e.preventDefault()
+    console.warn('WebGL context lost')
+  })
+  canvas.addEventListener('webglcontextrestored', () => {
+    console.info('WebGL context restored, reinitializing engine...')
+    csEngine = null
+    engineReady.value = false
+    viewportElements.value = {}
+    volumeLoaded = false
+  })
+}
+
+// Canvas2D fallback: fetch rendered slices from backend
+async function loadSlicesForCanvas() {
+  if (!appStore.selectedSeriesUid) return
+  canvasLoading.value = true
+  try {
+    const results = await Promise.all(
+      (['axial', 'sagittal', 'coronal'] as const).map(async (orient) => {
+        try {
+          const data = await appStore.getSlice(
+            appStore.selectedSeriesUid!,
+            orient,
+            canvasSliceIndex.value[orient] ?? 0,
+            windowCenter.value,
+            windowWidth.value,
+          )
+          return { orient, data: data?.data || null, maxSlice: data?.max_slice ?? 0 }
+        } catch {
+          return { orient, data: null, maxSlice: 0 }
+        }
+      })
+    )
+    for (const { orient, data, maxSlice } of results) {
+      canvasSliceData.value = { ...canvasSliceData.value, [orient]: data }
+      canvasMaxSlice.value = { ...canvasMaxSlice.value, [orient]: maxSlice }
+    }
+  } finally {
+    canvasLoading.value = false
+  }
+}
+
+async function handleCanvasSliceChange(orientation: string, newIndex: number) {
+  if (!appStore.selectedSeriesUid) return
+  canvasSliceIndex.value = { ...canvasSliceIndex.value, [orientation]: newIndex }
+  try {
+    const data = await appStore.getSlice(
+      appStore.selectedSeriesUid,
+      orientation,
+      newIndex,
+      windowCenter.value,
+      windowWidth.value,
+    )
+    canvasSliceData.value = { ...canvasSliceData.value, [orientation]: data?.data || null }
+  } catch {
+    // keep existing data on error
+  }
+}
+
+function handleCanvasAnnotateClick(x: number, y: number, orientation: string) {
+  canvasTools.handleCanvasClick(x, y)
+
+  // After annotation is created, fill in value
+  const last = canvasTools.annotations.value[canvasTools.annotations.value.length - 1]
+  if (!last) return
+
+  const pixels = canvasSliceData.value[orientation]
+  if (!pixels) return
+
+  const px = Math.round(x)
+  const py = Math.round(y)
+
+  if (last.toolName === 'Probe' && pixels[py]?.[px] !== undefined) {
+    canvasTools.setToolValue(last.uid, pixels[py][px])
+  } else if (last.toolName === 'Length' && last.points.length === 2 && seriesInfo.value?.spacing) {
+    const sp = seriesInfo.value.spacing
+    const dx = (last.points[1].x - last.points[0].x) * (sp[0] ?? 1)
+    const dy = (last.points[1].y - last.points[0].y) * (sp[1] ?? 1)
+    canvasTools.setToolValue(last.uid, Math.sqrt(dx * dx + dy * dy))
+  }
+}
+
 watch(
   () => [appStore.selectedSeriesUid, appStore.selectedPatientId],
   () => loadSeriesData()
@@ -598,7 +529,13 @@ async function onViewportReady(orientation: string, element: HTMLDivElement) {
 
   // Once all three viewports are ready, create the engine
   if (Object.keys(viewportElements.value).length === 3 && !csEngine) {
-    csEngine = new RenderingEngine('cs3d-engine')
+    try {
+      csEngine = new RenderingEngine('cs3d-engine')
+    } catch (err) {
+      console.error('WebGL engine failed, falling back to Canvas2D:', err)
+      useCanvasFallback.value = true
+      return
+    }
     csEngine.setViewports([
       {
         viewportId: 'axial',
@@ -620,6 +557,7 @@ async function onViewportReady(orientation: string, element: HTMLDivElement) {
       },
     ])
     engineReady.value = true
+    setupContextLossHandlers()
 
     // Create measurement tool group
     const toolGroup = tools.createToolGroup('cs3d-engine')
@@ -639,16 +577,27 @@ function onViewportResize() {
 }
 
 async function loadVolumeIntoViewports() {
-  if (!csEngine || !appStore.selectedSeriesUid || !appStore.selectedPatientId || !appStore.sessionId) return
-
-  const volumeId = buildVolumeId(appStore.sessionId, appStore.selectedPatientId, appStore.selectedSeriesUid)
+  if (!csEngine || !appStore.selectedSeriesUid || !appStore.selectedPatientId) return
 
   loading.value = true
   try {
-    for (const vpId of ['axial', 'sagittal', 'coronal'] as const) {
-      const vp = csEngine.getViewport(vpId)
-      if (vp) {
-        await (vp as Types.IBaseVolumeViewport).setVolumes([{ volumeId }])
+    if (appStore.isClientMode) {
+      const imageIds = getSeriesImageIds(appStore.selectedSeriesUid)
+      if (imageIds.length === 0) return
+      for (const vpId of ['axial', 'sagittal', 'coronal'] as const) {
+        const vp = csEngine.getViewport(vpId) as Types.IStackViewport
+        if (vp) {
+          await vp.setStack(imageIds, 0)
+        }
+      }
+    } else {
+      if (!appStore.sessionId) return
+      const volumeId = buildVolumeId(appStore.sessionId, appStore.selectedPatientId, appStore.selectedSeriesUid)
+      for (const vpId of ['axial', 'sagittal', 'coronal'] as const) {
+        const vp = csEngine.getViewport(vpId)
+        if (vp) {
+          await (vp as Types.IBaseVolumeViewport).setVolumes([{ volumeId }])
+        }
       }
     }
     volumeLoaded = true
@@ -664,12 +613,25 @@ async function loadSeriesData() {
   if (!appStore.selectedSeriesUid) return
   loading.value = true
   try {
-    seriesInfo.value = await appStore.getSeriesInfo(appStore.selectedSeriesUid)
-    structs.value = await appStore.getStructs()
-    doseList.value = await appStore.getDoseInfo()
+    // Parallelize independent API calls
+    const [infoResult, structsResult, doseResult] = await Promise.all([
+      appStore.getSeriesInfo(appStore.selectedSeriesUid),
+      appStore.isClientMode ? Promise.resolve([] as StructInfo[]) : appStore.getStructs(),
+      appStore.isClientMode ? Promise.resolve([] as DoseInfo[]) : appStore.getDoseInfo(),
+    ])
 
-    // Load DICOM tags for the first file in this series
-    await loadDicomTags()
+    seriesInfo.value = infoResult
+    structs.value = structsResult
+    doseList.value = doseResult
+
+    // Load DICOM tags in parallel with volume loading
+    const volumePromise = useCanvasFallback.value
+      ? loadSlicesForCanvas()
+      : engineReady.value
+        ? loadVolumeIntoViewports()
+        : Promise.resolve()
+
+    await Promise.all([loadDicomTags(), volumePromise])
 
     // Reset overlay state
     enabledStructOverlays.value.clear()
@@ -677,11 +639,6 @@ async function loadSeriesData() {
     structOverlayCache.value = {}
     doseOverlayCache.value = {}
     structColorMap.value = {}
-
-    // Load volume into Cornerstone3D viewports
-    if (engineReady.value) {
-      await loadVolumeIntoViewports()
-    }
   } finally {
     loading.value = false
   }

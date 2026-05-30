@@ -127,17 +127,28 @@
               <span>{{ $t('metadata.colValue') }}</span>
             </div>
 
-            <!-- Tag rows -->
-            <div class="divide-y divide-accent-100 dark:divide-accent-700 max-h-[60vh] overflow-y-auto">
-              <div
-                v-for="(tag, idx) in filteredTags"
-                :key="idx"
-                class="grid grid-cols-[100px_1fr_50px_1fr] gap-2 px-4 py-2 text-xs hover:bg-accent-50 dark:hover:bg-accent-700/30 transition-colors"
-              >
-                <span class="font-mono text-accent-500 dark:text-accent-400">{{ tag.tag }}</span>
-                <span class="text-accent-700 dark:text-accent-300 truncate">{{ tag.name }}</span>
-                <span class="font-mono text-accent-400 dark:text-accent-500">{{ tag.vr }}</span>
-                <span class="text-accent-900 dark:text-white font-mono truncate" :title="tag.value">{{ tag.value }}</span>
+            <!-- Tag rows (virtual scrolled) -->
+            <div
+              ref="tagScrollContainer"
+              class="max-h-[60vh] overflow-y-auto"
+              @scroll="onTagScroll"
+            >
+              <div :style="{ height: tagTotalHeight + 'px', position: 'relative' }">
+                <div
+                  :style="{ transform: `translateY(${tagOffsetY}px)` }"
+                  class="divide-y divide-accent-100 dark:divide-accent-700"
+                >
+                  <div
+                    v-for="(tag, idx) in visibleTags"
+                    :key="tagStartIndex + idx"
+                    class="grid grid-cols-[100px_1fr_50px_1fr] gap-2 px-4 py-2 text-xs hover:bg-accent-50 dark:hover:bg-accent-700/30 transition-colors"
+                  >
+                    <span class="font-mono text-accent-500 dark:text-accent-400">{{ tag.tag }}</span>
+                    <span class="text-accent-700 dark:text-accent-300 truncate">{{ tag.name }}</span>
+                    <span class="font-mono text-accent-400 dark:text-accent-500">{{ tag.vr }}</span>
+                    <span class="text-accent-900 dark:text-white font-mono truncate" :title="tag.value">{{ tag.value }}</span>
+                  </div>
+                </div>
               </div>
             </div>
 
@@ -261,6 +272,30 @@ const filteredTags = computed(() => {
     t.name.toLowerCase().includes(q) ||
     t.value.toLowerCase().includes(q)
   )
+})
+
+// Virtual scrolling for DICOM tags
+const TAG_ROW_HEIGHT = 36
+const TAG_VISIBLE_BUFFER = 10
+const tagScrollContainer = ref<HTMLElement | null>(null)
+const tagScrollTop = ref(0)
+
+const tagTotalHeight = computed(() => filteredTags.value.length * TAG_ROW_HEIGHT)
+const tagStartIndex = computed(() => Math.max(0, Math.floor(tagScrollTop.value / TAG_ROW_HEIGHT) - TAG_VISIBLE_BUFFER))
+const tagEndIndex = computed(() => {
+  const containerHeight = tagScrollContainer.value?.clientHeight || 600
+  return Math.min(filteredTags.value.length, Math.ceil((tagScrollTop.value + containerHeight) / TAG_ROW_HEIGHT) + TAG_VISIBLE_BUFFER)
+})
+const visibleTags = computed(() => filteredTags.value.slice(tagStartIndex.value, tagEndIndex.value))
+const tagOffsetY = computed(() => tagStartIndex.value * TAG_ROW_HEIGHT)
+
+function onTagScroll(e: Event) {
+  tagScrollTop.value = (e.target as HTMLElement).scrollTop
+}
+
+watch(filteredTags, () => {
+  tagScrollTop.value = 0
+  if (tagScrollContainer.value) tagScrollContainer.value.scrollTop = 0
 })
 
 watch(selectedFileId, async (fileId) => {

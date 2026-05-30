@@ -139,7 +139,6 @@ import {
   ArrowUpTrayIcon, CogIcon, DocumentTextIcon,
   BeakerIcon, TableCellsIcon, WrenchScrewdriverIcon,
   ArrowsRightLeftIcon, GlobeAltIcon, ShieldCheckIcon,
-  WifiIcon
 } from '@heroicons/vue/24/outline'
 
 interface Props {
@@ -171,7 +170,6 @@ const toolNavItems = computed(() => [
   { path: '/processing', label: t('sidebar.nav.postProcessing'), icon: WrenchScrewdriverIcon },
   { path: '/export', label: t('sidebar.nav.export'), icon: ArrowUpTrayIcon },
   { path: '/anonymization', label: t('sidebar.nav.anonymization'), icon: ShieldCheckIcon },
-  { path: '/offline', label: t('sidebar.nav.offline'), icon: WifiIcon },
   { path: '/settings', label: t('sidebar.nav.settings'), icon: CogIcon },
 ])
 </script>

@@ -88,6 +88,20 @@ A web-based medical image viewer and processing platform for radiation therapy. 
 - **No Backend Required** — Works without a running backend server
 - **Drag & Drop** — Drop DICOM files directly onto the viewer
 
+### PWA & Offline Support
+- **Progressive Web App** — Installable on desktop and mobile with manifest.json
+- **Service Worker Caching** — Automatic caching of DICOM slice responses using SHA-256 body-hashed cache keys
+- **Offline Repeat Access** — Previously viewed slices available offline from cache
+
+### WebWorker Rendering & Parsing
+- **OffscreenCanvas Rendering** — Image compositing and window/level in a dedicated WebWorker (non-blocking UI)
+- **Background DICOM Parsing** — Batch DICOM metadata extraction offloaded to WebWorker for large uploads
+- **Fallback to Main Thread** — Graceful degradation when WebWorker is unavailable
+
+### HTTP/2 Multiplexing
+- **HTTP/2 Protocol** — Multiplexed connections for concurrent slice/volume requests without head-of-line blocking
+- **Automatic Fallback** — Falls back to HTTP/1.1 if h2 is not available
+
 ### Authentication (OIDC)
 - **OpenID Connect** — Login via any OIDC provider (Keycloak, Auth0, etc.)
 - **JWT Tokens** — Secure token-based session management
@@ -100,6 +114,10 @@ A web-based medical image viewer and processing platform for radiation therapy. 
 - **Disk-Based Pixel Storage** — Pixel data saved to `.npy` files on disk immediately after upload
 - **Resource Limits** — Per-session: 10,000 files, 2 GB max size
 - **Session Cleanup** — 15-minute TTL with 2-minute cleanup cycle
+- **Streaming Volume Transfer** — Large volumes streamed in 4MB chunks to avoid timeouts
+- **Slice Prefetching** — Adjacent slices preloaded in background for smooth navigation
+- **Virtual Scrolling** — DICOM tag table renders only visible rows for large tag sets
+- **LRU Caching** — Bounded memory caches for volumes, structures, and doses
 
 ### Multi-Format Support
 | Format | Extension | Reader |
@@ -115,6 +133,7 @@ A web-based medical image viewer and processing platform for radiation therapy. 
 - **Responsive Layout** — Desktop and mobile-friendly interface
 - **Real-time Activity Log** — Track all processing operations
 - **Configurable Settings** — Window presets, overlay defaults, interaction speeds
+- **Security Hardened** — SSRF protection, path traversal prevention, rate limiting, secure CORS
 
 ## Architecture
 
@@ -163,7 +182,8 @@ MedVista/
 │   │   ├── components/
 │   │   │   ├── layout/           # AppLayout, AppSidebar, AppHeader, AuthGuard
 │   │   │   ├── viewer/           # Cornerstone3DViewer, MeasurementToolbar/Panel,
-│   │   │   │                     # SegmentationPanel, TimeSlider
+│   │   │   │                     # SegmentationPanel, TimeSlider, ViewerHeader,
+│   │   │   │                     # ViewerSidebar, ImageSliceViewer (Canvas2D)
 │   │   │   ├── pacs/             # PacsConnectionDialog, PacsBrowser
 │   │   │   └── common/           # DataTable, StatusBadge, etc.
 │   │   ├── composables/
@@ -177,7 +197,12 @@ MedVista/
 │   │   │   └── useClientMode     # Backend availability detection
 │   │   ├── utils/
 │   │   │   ├── cornerstoneVolumeLoader.ts  # Custom volume loader
-│   │   │   └── clientDicomLoader.ts        # Client-side DICOM parser
+│   │   │   ├── clientDicomLoader.ts        # Client-side DICOM parser
+│   │   │   ├── dicomClientParser.ts        # Client-side DICOM parsing (WebWorker)
+│   │   │   └── webglDetector.ts            # GPU capability detection
+│   │   ├── workers/
+│   │   │   ├── render.worker.ts            # OffscreenCanvas rendering
+│   │   │   └── dicom-parse.worker.ts       # Background DICOM parsing
 │   │   ├── stores/               # Pinia state management
 │   │   ├── i18n/                 # English + Chinese translations
 │   │   ├── router/               # Vue Router with auth guard

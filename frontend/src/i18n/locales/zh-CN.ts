@@ -20,7 +20,6 @@ export default {
       settings: '设置',
       pacs: 'PACS',
       anonymization: '匿名化',
-      offline: '离线查看器',
     },
   },
   header: {

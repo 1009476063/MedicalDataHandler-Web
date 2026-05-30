@@ -4,15 +4,19 @@ import pydicom
 import SimpleITK as sitk
 from collections import defaultdict
 
+from app.utils.cache import LRUCache
+
 
 class ImageBuilder:
     def __init__(self):
-        self._cache: dict[str, dict] = {}
+        self._cache = LRUCache(maxsize=5)
+        self._slice_cache = LRUCache(maxsize=10)
 
     def _build_volume(self, session, patient_id: str, series_uid: Optional[str] = None) -> Optional[dict]:
         cache_key = f"{session.get('session_id', '')}_{patient_id}_{series_uid or 'all'}"
-        if cache_key in self._cache:
-            return self._cache[cache_key]
+        cached = self._cache.get(cache_key)
+        if cached is not None:
+            return cached
 
         files = []
         for fid, finfo in session["files"].items():
@@ -76,7 +80,7 @@ class ImageBuilder:
             "mean": float(pixel_data.mean()),
         }
 
-        self._cache[cache_key] = result
+        self._cache.put(cache_key, result)
         return result
 
     def get_slice(
@@ -114,6 +118,14 @@ class ImageBuilder:
         else:
             return None
 
+        max_slice = arr.shape[0] if orientation == "axial" else (arr.shape[2] if orientation == "sagittal" else arr.shape[1])
+
+        # Check slice cache first (includes prefetched adjacent slices)
+        slice_cache_key = f"{session_id}_{patient_id}_{series_uid}_{orientation}_{slice_index}_{window_center}_{window_width}"
+        cached_slice = self._slice_cache.get(slice_cache_key)
+        if cached_slice is not None:
+            return cached_slice
+
         if window_center is not None and window_width is not None:
             min_val = window_center - window_width / 2
             max_val = window_center + window_width / 2
@@ -129,16 +141,19 @@ class ImageBuilder:
             else:
                 slice_data = np.zeros_like(slice_data, dtype=np.uint8)
 
-        return {
+        result = {
             "data": slice_data.tolist(),
             "shape": list(slice_data.shape),
             "orientation": orientation,
             "slice_index": slice_index,
-            "max_slice": arr.shape[0] if orientation == "axial" else (arr.shape[2] if orientation == "sagittal" else arr.shape[1]),
+            "max_slice": max_slice,
             "spacing": volume["spacing"],
             "window_center": window_center,
             "window_width": window_width,
         }
+
+        self._slice_cache.put(slice_cache_key, result)
+        return result
 
     def get_series_info(self, session_id: str, patient_id: str, series_uid: str) -> Optional[dict]:
         from app.services.dicom_service import dicom_service
@@ -157,6 +172,70 @@ class ImageBuilder:
             "min": volume["min"],
             "max": volume["max"],
             "mean": volume["mean"],
+        }
+
+    def get_slice_binary(
+        self, session_id: str, patient_id: str, series_uid: str,
+        orientation: str, slice_index: int,
+        window_center: Optional[float] = None,
+        window_width: Optional[float] = None
+    ) -> Optional[dict]:
+        """Return a processed uint8 slice as raw bytes for binary transfer."""
+        from app.services.dicom_service import dicom_service
+        session = dicom_service.sessions.get(session_id)
+        if not session:
+            return None
+
+        volume = self._build_volume(session, patient_id, series_uid)
+        if volume is None:
+            return None
+
+        arr = volume["array"]
+
+        if orientation == "axial":
+            max_idx = arr.shape[0]
+            if slice_index < 0 or slice_index >= max_idx:
+                slice_index = max_idx // 2
+            slice_data = arr[slice_index, :, :]
+        elif orientation == "sagittal":
+            max_idx = arr.shape[2]
+            if slice_index < 0 or slice_index >= max_idx:
+                slice_index = max_idx // 2
+            slice_data = arr[:, :, slice_index]
+        elif orientation == "coronal":
+            max_idx = arr.shape[1]
+            if slice_index < 0 or slice_index >= max_idx:
+                slice_index = max_idx // 2
+            slice_data = arr[:, slice_index, :]
+        else:
+            return None
+
+        max_slice = arr.shape[0] if orientation == "axial" else (arr.shape[2] if orientation == "sagittal" else arr.shape[1])
+
+        if window_center is not None and window_width is not None:
+            min_val = window_center - window_width / 2
+            max_val = window_center + window_width / 2
+            slice_data = np.clip(slice_data, min_val, max_val)
+            if max_val > min_val:
+                slice_data = ((slice_data - min_val) / (max_val - min_val) * 255).astype(np.uint8)
+            else:
+                slice_data = np.zeros_like(slice_data, dtype=np.uint8)
+        else:
+            p_min, p_max = np.percentile(slice_data, [1, 99])
+            if p_max > p_min:
+                slice_data = ((slice_data - p_min) / (p_max - p_min) * 255).astype(np.uint8)
+            else:
+                slice_data = np.zeros_like(slice_data, dtype=np.uint8)
+
+        return {
+            "data": slice_data.tobytes(),
+            "shape": list(slice_data.shape),
+            "orientation": orientation,
+            "slice_index": slice_index,
+            "max_slice": max_slice,
+            "spacing": volume["spacing"],
+            "window_center": window_center,
+            "window_width": window_width,
         }
 
     def get_volume(self, session_id: str, patient_id: str, series_uid: Optional[str] = None) -> Optional[dict]:
@@ -183,3 +262,28 @@ class ImageBuilder:
             "origin": volume["origin"],
             "dtype": str(arr.dtype),
         }
+
+    def prefetch_adjacent_slices(
+        self, session_id: str, patient_id: str, series_uid: str,
+        orientation: str, center_index: int, max_slice: int,
+        window_center: Optional[float] = None,
+        window_width: Optional[float] = None,
+        radius: int = 2,
+    ) -> None:
+        """Prefetch adjacent slices into the slice cache in the background."""
+        for offset in range(-radius, radius + 1):
+            if offset == 0:
+                continue
+            idx = center_index + offset
+            if idx < 0 or idx >= max_slice:
+                continue
+            cache_key = f"{session_id}_{patient_id}_{series_uid}_{orientation}_{idx}_{window_center}_{window_width}"
+            if self._slice_cache.get(cache_key) is not None:
+                continue
+            # Build and cache the adjacent slice
+            result = self.get_slice(
+                session_id, patient_id, series_uid,
+                orientation, idx, window_center, window_width,
+            )
+            if result is not None:
+                self._slice_cache.put(cache_key, result)

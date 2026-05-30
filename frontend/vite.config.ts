@@ -9,6 +9,16 @@ export default defineConfig({
       '@': resolve(__dirname, 'src'),
     },
   },
+  build: {
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          'cornerstone-core': ['@cornerstonejs/core'],
+          'cornerstone-tools': ['@cornerstonejs/tools'],
+        },
+      },
+    },
+  },
   server: {
     port: 3000,
     proxy: {

@@ -15,8 +15,10 @@ from typing import Optional
 from collections import defaultdict
 
 from app.services.log_service import log_service
+from app.utils.cache import LRUCache
 
 UPLOAD_DIR = Path("uploads")
+_seg_cache = LRUCache(maxsize=5)
 
 
 def _get_session(session_id: str) -> Optional[dict]:
@@ -182,7 +184,11 @@ def list_segments(session_id: str, patient_id: str) -> list[dict]:
             continue
 
         try:
-            ds = pydicom.dcmread(io.BytesIO(raw_bytes), force=True)
+            cache_key = f"{session_id}_{fid}"
+            ds = _seg_cache.get(cache_key)
+            if ds is None:
+                ds = pydicom.dcmread(io.BytesIO(raw_bytes), force=True)
+                _seg_cache.put(cache_key, ds)
             seg_info = _parse_seg(ds)
             results.append({
                 "file_id": fid,
@@ -213,7 +219,11 @@ def get_segment_mask(
         return None
 
     try:
-        ds = pydicom.dcmread(io.BytesIO(raw_bytes), force=True)
+        cache_key = f"{session_id}_{file_id}"
+        ds = _seg_cache.get(cache_key)
+        if ds is None:
+            ds = pydicom.dcmread(io.BytesIO(raw_bytes), force=True)
+            _seg_cache.put(cache_key, ds)
     except Exception as e:
         log_service.warning(f"Failed to read SEG {file_id}: {e}", "seg")
         return None
@@ -270,7 +280,11 @@ def get_segment_volume(
             continue
 
         try:
-            ds = pydicom.dcmread(io.BytesIO(raw_bytes), force=True)
+            cache_key = f"{session_id}_{fid}"
+            ds = _seg_cache.get(cache_key)
+            if ds is None:
+                ds = pydicom.dcmread(io.BytesIO(raw_bytes), force=True)
+                _seg_cache.put(cache_key, ds)
             seg_info = _parse_seg(ds)
 
             for seg in seg_info["segments"]:

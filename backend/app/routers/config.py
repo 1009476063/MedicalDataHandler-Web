@@ -2,6 +2,9 @@ from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 from pathlib import Path
 import json
+import asyncio
+
+from app.models.response import ApiResponse
 
 router = APIRouter()
 CONFIG_DIR = Path(__file__).parent.parent.parent / "config_files"
@@ -145,7 +148,9 @@ DEFAULTS = {
 
 
 def _normalize_name(name: str) -> str:
-    """Convert URL-style hyphens to filesystem-style underscores."""
+    """Convert URL-style hyphens to filesystem-style underscores. Blocks path traversal."""
+    if '..' in name or '/' in name or '\\' in name:
+        raise ValueError("Invalid config name")
     return name.replace("-", "_")
 
 
@@ -170,23 +175,23 @@ def _save_config(name: str, data: dict):
 
 @router.get("/")
 async def list_configs():
-    configs = [f.stem for f in CONFIG_DIR.glob("*.json")]
-    return {"configs": configs}
+    configs = await asyncio.to_thread(lambda: [f.stem for f in CONFIG_DIR.glob("*.json")])
+    return ApiResponse(success=True, data={"configs": configs})
 
 
 @router.get("/{config_name}")
 async def get_config(config_name: str):
     normalized = _normalize_name(config_name)
-    data = _load_config(config_name)
+    data = await asyncio.to_thread(_load_config, config_name)
     if not data:
         if normalized in DEFAULTS:
-            return DEFAULTS[normalized]
+            return ApiResponse(success=True, data=DEFAULTS[normalized])
         raise HTTPException(status_code=404, detail="Config not found")
     # Normalize: wrap flat data in standard {name, description, rules} format
     if "rules" not in data and normalized in DEFAULTS:
         default = DEFAULTS[normalized]
         data = {"name": default.get("name", normalized), "description": default.get("description", ""), "rules": data}
-    return data
+    return ApiResponse(success=True, data=data)
 
 
 class UpdateConfigRequest(BaseModel):
@@ -196,7 +201,7 @@ class UpdateConfigRequest(BaseModel):
 @router.put("/{config_name}")
 async def update_config(config_name: str, req: UpdateConfigRequest):
     normalized = _normalize_name(config_name)
-    data = _load_config(config_name)
+    data = await asyncio.to_thread(_load_config, config_name)
     if not data:
         if normalized in DEFAULTS:
             data = DEFAULTS[normalized].copy()
@@ -208,14 +213,14 @@ async def update_config(config_name: str, req: UpdateConfigRequest):
         data = {"name": default.get("name", normalized), "description": default.get("description", ""), "rules": data}
 
     data["rules"] = req.rules
-    _save_config(config_name, data)
-    return {"success": True, "config_name": config_name}
+    await asyncio.to_thread(_save_config, config_name, data)
+    return ApiResponse(success=True, data={"config_name": config_name})
 
 
 @router.post("/{config_name}/reset")
 async def reset_config(config_name: str):
     normalized = _normalize_name(config_name)
     if normalized in DEFAULTS:
-        _save_config(config_name, DEFAULTS[normalized])
-        return {"success": True, "config": DEFAULTS[normalized]}
+        await asyncio.to_thread(_save_config, config_name, DEFAULTS[normalized])
+        return ApiResponse(success=True, data={"config": DEFAULTS[normalized]})
     raise HTTPException(status_code=404, detail="No default config for this name")

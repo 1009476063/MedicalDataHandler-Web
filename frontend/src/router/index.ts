@@ -77,12 +77,6 @@ const router = createRouter({
       meta: { titleKey: 'sidebar.nav.anonymization' },
     },
     {
-      path: '/offline',
-      name: 'offline',
-      component: () => import('@/views/OfflineViewerView.vue'),
-      meta: { titleKey: 'sidebar.nav.offline' },
-    },
-    {
       path: '/login',
       name: 'login',
       component: () => import('@/views/LoginView.vue'),
@@ -111,7 +105,6 @@ const routeImports = [
   () => import('@/views/SettingsView.vue'),
   () => import('@/views/PacsView.vue'),
   () => import('@/views/AnonymizationView.vue'),
-  () => import('@/views/OfflineViewerView.vue'),
   () => import('@/views/LoginView.vue'),
 ]
 const preload = () => routeImports.forEach(loader => loader())

@@ -8,6 +8,7 @@ import json
 import asyncio
 from pathlib import Path
 
+from app.models.response import ApiResponse
 from app.services.dicom_service import dicom_service
 from app.services.image_builder import ImageBuilder
 
@@ -219,7 +220,7 @@ async def rename_struct(req: RenameStructRequest):
         )
         if result is None:
             raise HTTPException(status_code=404, detail="Structure not found")
-        return {"success": True, "new_name": req.new_name}
+        return ApiResponse(success=True, data={"new_name": req.new_name})
     except HTTPException:
         raise
     except Exception as e:
@@ -242,7 +243,7 @@ async def auto_rename_structs(session_id: str, patient_id: str):
                 dicom_service.rename_struct(session_id, patient_id, struct["key"], new_name)
                 renamed.append({"key": struct["key"], "old_name": struct["name"], "new_name": new_name})
 
-        return {"renamed": len(renamed), "structures": renamed}
+        return ApiResponse(success=True, data={"renamed": len(renamed), "structures": renamed})
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -250,7 +251,7 @@ async def auto_rename_structs(session_id: str, patient_id: str):
 @router.get("/tg263-names")
 async def get_tg263_names():
     """Get the TG-263 structure name mapping."""
-    return {"names": TG263_NAMES}
+    return ApiResponse(success=True, data={"names": TG263_NAMES})
 
 
 def _sum_doses_sync(req: SumDoseRequest) -> io.BytesIO:

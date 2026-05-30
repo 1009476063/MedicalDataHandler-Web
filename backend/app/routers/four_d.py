@@ -4,6 +4,8 @@ from pydantic import BaseModel
 from typing import Optional
 import asyncio
 
+from app.models.response import ApiResponse
+
 router = APIRouter()
 
 
@@ -22,8 +24,8 @@ async def get_4d_info(session_id: str, patient_id: str, series_uid: str):
         detect_temporal_positions, session_id, patient_id, series_uid,
     )
     if result is None:
-        return {"is_4d": False, "time_point_count": 0, "time_points": []}
-    return result
+        return ApiResponse(success=True, data={"is_4d": False, "time_point_count": 0, "time_points": []})
+    return ApiResponse(success=True, data=result)
 
 
 @router.post("/volume")
@@ -50,4 +52,4 @@ async def get_4d_volume(req: FourDVolumeRequest):
             "max": vol["max"],
             "mean": vol["mean"],
         }
-    return {"volumes": volumes}
+    return ApiResponse(success=True, data={"volumes": volumes})

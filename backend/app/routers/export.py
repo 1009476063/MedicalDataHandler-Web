@@ -8,6 +8,7 @@ import numpy as np
 import gzip
 import asyncio
 
+from app.models.response import ApiResponse
 from app.services.dicom_service import dicom_service
 from app.services.image_builder import ImageBuilder
 

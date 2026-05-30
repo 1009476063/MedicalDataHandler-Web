@@ -3,10 +3,12 @@ from typing import Optional
 import pydicom
 from PIL import Image, ImageDraw
 
+from app.utils.cache import LRUCache
+
 
 class RTStructBuilder:
     def __init__(self):
-        self._cache: dict[str, dict] = {}
+        self._cache = LRUCache(maxsize=3)
 
     def _get_session(self, session_id: str) -> Optional[dict]:
         from app.services.dicom_service import dicom_service
@@ -80,6 +82,27 @@ class RTStructBuilder:
         if not contour_data:
             return None
 
+        # Filter contours by Z coordinate for the requested slice
+        if orientation == "axial":
+            contour_data = self._filter_contours_by_slice(
+                session, patient_id, contour_data, slice_index, 2
+            )
+        elif orientation == "sagittal":
+            contour_data = self._filter_contours_by_slice(
+                session, patient_id, contour_data, slice_index, 0
+            )
+        elif orientation == "coronal":
+            contour_data = self._filter_contours_by_slice(
+                session, patient_id, contour_data, slice_index, 1
+            )
+
+        if not contour_data:
+            return {
+                "mask": None,
+                "shape": list(image_shape if image_shape else (256, 256)),
+                "name": str(roi.ROIName),
+            }
+
         # Use actual CT dimensions or fallback to 256x256
         h, w = image_shape if image_shape else (256, 256)
         mask = self._contour_to_mask(contour_data, slice_index, orientation, h, w)
@@ -89,6 +112,54 @@ class RTStructBuilder:
             "shape": list(mask.shape) if mask is not None else [h, w],
             "name": str(roi.ROIName),
         }
+
+    def _filter_contours_by_slice(
+        self, session: dict, patient_id: str,
+        contour_data: list, slice_index: int, z_axis: int,
+    ) -> list:
+        """Filter contours to only those on the requested slice.
+
+        z_axis: which coordinate axis corresponds to the slice direction
+                (2 for axial/Z, 0 for sagittal/X, 1 for coronal/Y)
+        """
+        # Collect image slices for this patient to determine slice positions
+        slices = []
+        for fid, finfo in session["files"].items():
+            if finfo["patient_id"] != patient_id or finfo["modality"] not in ("CT", "MR", "PT", "NM", "OT"):
+                continue
+            raw_info = session["raw_data"].get(fid)
+            if raw_info and "slice_location" in raw_info:
+                slices.append(raw_info)
+
+        if not slices:
+            return contour_data  # fallback: return all contours
+
+        slices.sort(key=lambda s: s.get("slice_location", 0))
+
+        if slice_index < 0 or slice_index >= len(slices):
+            return contour_data
+
+        # Get the Z coordinate of the requested slice
+        origin = slices[0].get("position", [0.0, 0.0, 0.0])
+        if len(slices) > 1:
+            spacing = abs(slices[1].get("slice_location", 0) - slices[0].get("slice_location", 0))
+        else:
+            spacing = 1.0
+
+        target_z = origin[z_axis] + slice_index * spacing
+
+        # Filter: keep contours whose Z coordinate is close to target_z
+        filtered = []
+        tolerance = max(spacing * 0.6, 0.5)  # slight tolerance for floating point
+        for points in contour_data:
+            if len(points) < 9:
+                continue
+            coords = np.array(points).reshape(-1, 3)
+            contour_z = coords[0, z_axis]
+            if abs(contour_z - target_z) <= tolerance:
+                filtered.append(points)
+
+        return filtered if filtered else contour_data  # fallback if no match
 
     def _get_roi_contours(self, ds, roi_number) -> Optional[list]:
         if not hasattr(ds, "ROIContourSequence"):

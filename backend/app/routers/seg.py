@@ -8,6 +8,7 @@ from typing import Optional
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
+from app.models.response import ApiResponse
 from app.services import seg_service, dicom_service
 
 router = APIRouter()
@@ -36,7 +37,7 @@ async def list_segments(session_id: str, patient_id: str):
     result = await asyncio.to_thread(
         seg_service.list_segments, session_id, patient_id,
     )
-    return {"segments": result, "count": len(result)}
+    return ApiResponse(success=True, data={"segments": result, "count": len(result)})
 
 
 @router.get("/check/{session_id}/{patient_id}")
@@ -50,7 +51,7 @@ async def check_seg(session_id: str, patient_id: str):
     has_seg = await asyncio.to_thread(
         seg_service.detect_seg_in_session, session_id, patient_id,
     )
-    return {"has_seg": has_seg}
+    return ApiResponse(success=True, data={"has_seg": has_seg})
 
 
 @router.post("/mask")
@@ -67,7 +68,7 @@ async def get_mask(req: SegmentMaskRequest):
     )
     if result is None:
         raise HTTPException(status_code=404, detail="Segment not found")
-    return result
+    return ApiResponse(success=True, data=result)
 
 
 @router.post("/volume")
@@ -84,4 +85,4 @@ async def get_volume(req: SegmentVolumeRequest):
     )
     if result is None:
         raise HTTPException(status_code=404, detail="No segmentation data found")
-    return result
+    return ApiResponse(success=True, data=result)

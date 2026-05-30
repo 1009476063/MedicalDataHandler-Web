@@ -14,6 +14,25 @@ const clientFiles = ref<Array<{
   metadata: Record<string, unknown>
 }>>([])
 
+export interface ClientPatient {
+  patientId: string
+  patientName: string
+  studies: Map<string, ClientStudy>
+}
+
+export interface ClientStudy {
+  studyUid: string
+  description: string
+  series: Map<string, ClientSeries>
+}
+
+export interface ClientSeries {
+  seriesUid: string
+  description: string
+  modality: string
+  files: Array<{ id: string; metadata: Record<string, unknown> }>
+}
+
 /** Check if the backend server is reachable. */
 export async function checkBackend(): Promise<boolean> {
   try {
@@ -65,21 +84,8 @@ export async function loadClientFiles(files: File[]) {
 }
 
 /** Get unique patients from client files. */
-export function getClientPatients() {
-  const patientMap = new Map<string, {
-    patientId: string
-    patientName: string
-    studies: Map<string, {
-      studyUid: string
-      description: string
-      series: Map<string, {
-        seriesUid: string
-        description: string
-        modality: string
-        files: Array<{ id: string; metadata: Record<string, unknown> }>
-      }>
-    }>
-  }>()
+export function getClientPatients(): ClientPatient[] {
+  const patientMap = new Map<string, ClientPatient>()
 
   for (const file of clientFiles.value) {
     const meta = file.metadata as Record<string, string>
@@ -123,6 +129,43 @@ export function getClientPatients() {
   return Array.from(patientMap.values())
 }
 
+/** Get imageIds for a specific series, sorted by instance number. */
+export function getSeriesImageIds(seriesUid: string): string[] {
+  const files = clientFiles.value.filter(
+    f => (f.metadata as Record<string, string>).seriesInstanceUID === seriesUid
+  )
+  const sorted = files.sort((a, b) => {
+    const instA = (a.metadata.instanceNumber as number) || 0
+    const instB = (b.metadata.instanceNumber as number) || 0
+    return instA - instB
+  })
+  return sorted.map(f => f.id)
+}
+
+/** Get metadata for all files in a series. */
+export function getSeriesMetadata(seriesUid: string) {
+  return clientFiles.value
+    .filter(f => (f.metadata as Record<string, string>).seriesInstanceUID === seriesUid)
+    .sort((a, b) => {
+      const instA = (a.metadata.instanceNumber as number) || 0
+      const instB = (b.metadata.instanceNumber as number) || 0
+      return instA - instB
+    })
+    .map(f => f.metadata)
+}
+
+/** Get metadata for a specific file by imageId. */
+export function getFileMetadataById(imageId: string): Record<string, unknown> | null {
+  const file = clientFiles.value.find(f => f.id === imageId)
+  return file ? file.metadata : null
+}
+
+/** Clear all client files and buffers. */
+export function clearClientFiles() {
+  clientFiles.value = []
+  clearDicomBuffers()
+}
+
 export function useClientMode() {
   return {
     isClientMode,
@@ -133,5 +176,8 @@ export function useClientMode() {
     disableClientMode,
     loadClientFiles,
     getClientPatients,
+    getSeriesImageIds,
+    getSeriesMetadata,
+    clearClientFiles,
   }
 }

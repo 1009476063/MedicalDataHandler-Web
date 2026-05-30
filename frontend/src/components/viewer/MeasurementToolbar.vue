@@ -2,7 +2,7 @@
   <div class="flex items-center gap-1 px-3 py-1.5 bg-white dark:bg-accent-900 border-b border-accent-200 dark:border-accent-700">
     <span class="text-xs font-medium text-accent-500 dark:text-accent-400 mr-1">{{ $t('viewer.tools') }}:</span>
     <button
-      v-for="tool in tools"
+      v-for="tool in filteredTools"
       :key="tool.name"
       :class="[
         'px-2 py-1 text-xs rounded transition-colors',
@@ -16,20 +16,22 @@
       {{ tool.label }}
     </button>
 
-    <div class="w-px h-4 bg-accent-200 dark:bg-accent-700 mx-1" />
+    <template v-if="!canvasMode">
+      <div class="w-px h-4 bg-accent-200 dark:bg-accent-700 mx-1" />
 
-    <button
-      :class="[
-        'px-2 py-1 text-xs rounded transition-colors',
-        crosshairsEnabled
-          ? 'bg-primary-500 text-white'
-          : 'bg-accent-100 dark:bg-accent-800 text-accent-700 dark:text-accent-300 hover:bg-accent-200 dark:hover:bg-accent-700',
-      ]"
-      :title="$t('viewer.crosshairs')"
-      @click="$emit('toggle-crosshairs')"
-    >
-      {{ $t('viewer.crosshairs') }}
-    </button>
+      <button
+        :class="[
+          'px-2 py-1 text-xs rounded transition-colors',
+          crosshairsEnabled
+            ? 'bg-primary-500 text-white'
+            : 'bg-accent-100 dark:bg-accent-800 text-accent-700 dark:text-accent-300 hover:bg-accent-200 dark:hover:bg-accent-700',
+        ]"
+        :title="$t('viewer.crosshairs')"
+        @click="$emit('toggle-crosshairs')"
+      >
+        {{ $t('viewer.crosshairs') }}
+      </button>
+    </template>
 
     <div class="flex-1" />
 
@@ -51,14 +53,16 @@
 </template>
 
 <script setup lang="ts">
+import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import type { ToolName } from '@/composables/useTools'
 
 const { t } = useI18n()
 
-defineProps<{
+const props = defineProps<{
   activeTool: ToolName
   crosshairsEnabled: boolean
+  canvasMode?: boolean
 }>()
 
 defineEmits<{
@@ -68,7 +72,7 @@ defineEmits<{
   'export-csv': []
 }>()
 
-const tools: { name: ToolName; label: string }[] = [
+const allTools: { name: ToolName; label: string }[] = [
   { name: 'Length', label: 'mm' },
   { name: 'Angle', label: '°' },
   { name: 'RectangleROI', label: '□' },
@@ -76,4 +80,11 @@ const tools: { name: ToolName; label: string }[] = [
   { name: 'Probe', label: '+' },
   { name: 'ArrowAnnotate', label: '→' },
 ]
+
+const filteredTools = computed(() => {
+  if (props.canvasMode) {
+    return allTools.filter(t => ['Length', 'Probe'].includes(t.name))
+  }
+  return allTools
+})
 </script>

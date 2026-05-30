@@ -1,6 +1,7 @@
 <template>
   <div
     class="relative bg-black rounded-xl overflow-hidden border border-accent-700"
+    :class="{ 'cursor-crosshair': activeTool }"
     @mousedown="onMouseDown"
     @mousemove="onMouseMove"
     @mouseup="onMouseUp"
@@ -59,6 +60,14 @@ export interface OverlayData {
   thickness?: number
 }
 
+export interface CanvasAnnotation {
+  uid: string
+  toolName: 'Length' | 'Probe'
+  points: { x: number; y: number }[]
+  value?: number
+  label?: string
+}
+
 const props = withDefaults(defineProps<{
   pixelData: number[][] | null
   width: number
@@ -78,6 +87,10 @@ const props = withDefaults(defineProps<{
   crosshairX?: number | null
   crosshairY?: number | null
   zoomSpeed?: number
+  activeTool?: 'Length' | 'Probe' | null
+  annotations?: CanvasAnnotation[]
+  currentPoints?: { x: number; y: number }[]
+  spacing?: { x: number; y: number } | null
   panSpeed?: number
 }>(), {
   overlays: () => [],
@@ -90,6 +103,10 @@ const props = withDefaults(defineProps<{
   crosshairY: null,
   zoomSpeed: 0.1,
   panSpeed: 1,
+  activeTool: null,
+  annotations: () => [],
+  currentPoints: () => [],
+  spacing: null,
 })
 
 const emit = defineEmits<{
@@ -98,6 +115,7 @@ const emit = defineEmits<{
   'zoom-change': [zoom: number]
   'crosshair-move': [x: number, y: number]
   'reset-view': []
+  'click': [x: number, y: number]
 }>()
 
 const canvas = ref<HTMLCanvasElement>()
@@ -111,6 +129,11 @@ const zoomLevel = ref(1)
 const panX = ref(0)
 const panY = ref(0)
 const isPanning = false
+
+// OffscreenCanvas WebWorker for pixel processing
+let renderWorker: Worker | null = null
+let useWorker = false
+let pendingBitmap: ImageBitmap | null = null
 
 const orientationLabels = computed(() => {
   const map: Record<string, { top: string; bottom: string; left: string; right: string }> = {
@@ -137,11 +160,33 @@ onMounted(() => {
   if (canvas.value) {
     ctx = canvas.value.getContext('2d')
     resizeCanvas()
+
+    // Initialize OffscreenCanvas WebWorker if supported
+    try {
+      renderWorker = new Worker(
+        new URL('@/workers/render.worker.ts', import.meta.url),
+        { type: 'module' }
+      )
+      renderWorker.onmessage = (e) => {
+        if (e.data.type === 'rendered') {
+          pendingBitmap = e.data.bitmap
+          drawComposited()
+        }
+      }
+      renderWorker.onerror = () => {
+        useWorker = false
+        renderWorker = null
+      }
+      useWorker = true
+    } catch {
+      useWorker = false
+    }
   }
 })
 
 onBeforeUnmount(() => {
-  // cleanup
+  renderWorker?.terminate()
+  renderWorker = null
 })
 
 watch(
@@ -171,6 +216,10 @@ function resizeCanvas() {
   if (!parent) return
   canvas.value.width = parent.clientWidth
   canvas.value.height = parent.clientHeight
+  // Notify Worker of new canvas dimensions
+  if (useWorker && renderWorker) {
+    renderWorker.postMessage({ type: 'resize', width: parent.clientWidth, height: parent.clientHeight })
+  }
   renderSlice()
 }
 
@@ -179,46 +228,64 @@ function renderSlice() {
 
   const cw = canvas.value.width
   const ch = canvas.value.height
-  ctx.clearRect(0, 0, cw, ch)
-
-  ctx.save()
-
-  // Apply zoom and pan transforms
-  const cx = cw / 2
-  const cy = ch / 2
-  ctx.translate(cx + panX.value, cy + panY.value)
-  ctx.scale(zoomLevel.value, zoomLevel.value)
-  ctx.translate(-cx, -cy)
-
-  // Apply rotation and flip transforms
-  ctx.translate(cx, cy)
-  ctx.rotate((props.rotation * Math.PI) / 180)
-  ctx.scale(props.flipH ? -1 : 1, props.flipV ? -1 : 1)
-  ctx.translate(-cx, -cy)
-
-  // Draw base image
   const data = props.pixelData
   const rows = data.length
   const cols = data[0]?.length || 0
   if (!rows || !cols) {
-    ctx.restore()
+    ctx.clearRect(0, 0, cw, ch)
     return
   }
 
   const wc = props.windowCenter ?? 0
   const ww = props.windowWidth ?? 1
+
+  // Use WebWorker for pixel processing if available
+  if (useWorker && renderWorker) {
+    // Flatten 2D array to typed array for Worker
+    const flat = new Float32Array(rows * cols)
+    for (let r = 0; r < rows; r++) {
+      for (let c = 0; c < cols; c++) {
+        flat[r * cols + c] = data[r][c]
+      }
+    }
+    renderWorker.postMessage({
+      type: 'render',
+      pixelData: flat,
+      width: cols,
+      height: rows,
+      windowCenter: wc,
+      windowWidth: ww,
+      canvasWidth: cw,
+      canvasHeight: ch,
+    })
+    return // Worker callback will call drawComposited()
+  }
+
+  // Fallback: main thread pixel processing
+  ctx.clearRect(0, 0, cw, ch)
+  ctx.save()
+
+  const cx = cw / 2
+  const cy = ch / 2
+  ctx.translate(cx + panX.value, cy + panY.value)
+  ctx.scale(zoomLevel.value, zoomLevel.value)
+  ctx.translate(-cx, -cy)
+  ctx.translate(cx, cy)
+  ctx.rotate((props.rotation * Math.PI) / 180)
+  ctx.scale(props.flipH ? -1 : 1, props.flipV ? -1 : 1)
+  ctx.translate(-cx, -cy)
+
   const lower = wc - ww / 2
   const upper = wc + ww / 2
-
   const imageData = ctx.createImageData(cols, rows)
   const pixels = imageData.data
 
   for (let r = 0; r < rows; r++) {
     for (let c = 0; c < cols; c++) {
       const val = data[r][c]
-      let normalized = (val - lower) / (upper - lower)
-      normalized = Math.max(0, Math.min(1, normalized))
-      const gray = Math.round(normalized * 255)
+      let normalized = (val - lower) / ((upper - lower) || 1)
+      normalized = normalized < 0 ? 0 : normalized > 1 ? 1 : normalized
+      const gray = (normalized * 255 + 0.5) | 0
       const idx = (r * cols + c) * 4
       pixels[idx] = gray
       pixels[idx + 1] = gray
@@ -243,12 +310,105 @@ function renderSlice() {
     drawOverlay(ctx, overlay, rows, cols, cw, ch)
   }
 
+  // Draw annotations (Length + Probe)
+  for (const ann of props.annotations) {
+    if (ann.toolName === 'Length' && ann.points.length === 2) {
+      drawLengthAnnotation(ctx, ann, cw, ch)
+    } else if (ann.toolName === 'Probe' && ann.points.length === 1) {
+      drawProbeAnnotation(ctx, ann, cw, ch)
+    }
+  }
+
+  // Draw current in-progress points
+  if (props.currentPoints && props.currentPoints.length > 0) {
+    for (const pt of props.currentPoints) {
+      const sx = pt.x * (cw / cols)
+      const sy = pt.y * (ch / rows)
+      ctx.fillStyle = '#00ff00'
+      ctx.beginPath()
+      ctx.arc(sx, sy, 3, 0, Math.PI * 2)
+      ctx.fill()
+    }
+  }
+
   ctx.restore()
 
   // Draw crosshairs (outside zoom/pan transform for screen-space positioning)
   if (props.crosshairX !== null && props.crosshairY !== null) {
     drawCrosshair(ctx, cw, ch)
   }
+}
+
+/**
+ * Called by WebWorker callback after pixel processing is done.
+ * Draws the ImageBitmap from the Worker, then overlays/annotations/crosshairs on main thread.
+ */
+function drawComposited() {
+  if (!ctx || !canvas.value || !pendingBitmap) return
+
+  const cw = canvas.value.width
+  const ch = canvas.value.height
+  const data = props.pixelData
+  if (!data || !data.length) return
+  const rows = data.length
+  const cols = data[0]?.length || 0
+
+  ctx.clearRect(0, 0, cw, ch)
+  ctx.save()
+
+  // Apply zoom and pan transforms
+  const cx = cw / 2
+  const cy = ch / 2
+  ctx.translate(cx + panX.value, cy + panY.value)
+  ctx.scale(zoomLevel.value, zoomLevel.value)
+  ctx.translate(-cx, -cy)
+
+  // Apply rotation and flip transforms
+  ctx.translate(cx, cy)
+  ctx.rotate((props.rotation * Math.PI) / 180)
+  ctx.scale(props.flipH ? -1 : 1, props.flipV ? -1 : 1)
+  ctx.translate(-cx, -cy)
+
+  // Draw the Worker-rendered ImageBitmap
+  ctx.imageSmoothingEnabled = true
+  ctx.imageSmoothingQuality = 'high'
+  ctx.drawImage(pendingBitmap, 0, 0, cw, ch)
+
+  // Draw overlays on main thread
+  for (const overlay of props.overlays) {
+    if (!overlay.mask) continue
+    drawOverlay(ctx, overlay, rows, cols, cw, ch)
+  }
+
+  // Draw annotations
+  for (const ann of props.annotations) {
+    if (ann.toolName === 'Length' && ann.points.length === 2) {
+      drawLengthAnnotation(ctx, ann, cw, ch)
+    } else if (ann.toolName === 'Probe' && ann.points.length === 1) {
+      drawProbeAnnotation(ctx, ann, cw, ch)
+    }
+  }
+
+  // Draw current in-progress points
+  if (props.currentPoints && props.currentPoints.length > 0) {
+    for (const pt of props.currentPoints) {
+      const sx = pt.x * (cw / cols)
+      const sy = pt.y * (ch / rows)
+      ctx.fillStyle = '#00ff00'
+      ctx.beginPath()
+      ctx.arc(sx, sy, 3, 0, Math.PI * 2)
+      ctx.fill()
+    }
+  }
+
+  ctx.restore()
+
+  // Draw crosshairs
+  if (props.crosshairX !== null && props.crosshairY !== null) {
+    drawCrosshair(ctx, cw, ch)
+  }
+
+  pendingBitmap = null
 }
 
 function drawCrosshair(ctx: CanvasRenderingContext2D, cw: number, ch: number) {
@@ -385,6 +545,15 @@ function parseColor(color: string): { r: number; g: number; b: number } {
 }
 
 function onMouseDown(e: MouseEvent) {
+  // If a measurement tool is active, handle click for annotation
+  if (props.activeTool && e.button === 0 && !e.shiftKey && !e.ctrlKey) {
+    const rect = (canvas.value as HTMLCanvasElement).getBoundingClientRect()
+    const x = (e.clientX - rect.left) / zoomLevel.value
+    const y = (e.clientY - rect.top) / zoomLevel.value
+    emit('click', x, y)
+    return
+  }
+
   isDragging = true
   lastX = e.clientX
   lastY = e.clientY
@@ -475,6 +644,113 @@ watch(
   () => [props.crosshairX, props.crosshairY],
   () => renderSlice()
 )
+
+watch(
+  () => [props.annotations, props.currentPoints],
+  () => renderSlice(),
+  { deep: true }
+)
+
+function drawLengthAnnotation(
+  ctx: CanvasRenderingContext2D,
+  ann: CanvasAnnotation,
+  canvasW: number,
+  canvasH: number,
+) {
+  if (!props.pixelData) return
+  const rows = props.pixelData.length
+  const cols = props.pixelData[0]?.length || 0
+  if (!rows || !cols) return
+
+  const p0 = ann.points[0]
+  const p1 = ann.points[1]
+  const sx0 = p0.x * (canvasW / cols)
+  const sy0 = p0.y * (canvasH / rows)
+  const sx1 = p1.x * (canvasW / cols)
+  const sy1 = p1.y * (canvasH / rows)
+
+  ctx.save()
+  ctx.strokeStyle = '#00ff00'
+  ctx.lineWidth = 2
+  ctx.setLineDash([])
+  ctx.beginPath()
+  ctx.moveTo(sx0, sy0)
+  ctx.lineTo(sx1, sy1)
+  ctx.stroke()
+
+  // Endpoints
+  for (const [sx, sy] of [[sx0, sy0], [sx1, sy1]]) {
+    ctx.fillStyle = '#00ff00'
+    ctx.beginPath()
+    ctx.arc(sx, sy, 4, 0, Math.PI * 2)
+    ctx.fill()
+  }
+
+  // Label
+  const label = ann.value != null
+    ? `${ann.value.toFixed(1)} mm`
+    : `${Math.round(Math.hypot(p1.x - p0.x, p1.y - p0.y))} px`
+  const mx = (sx0 + sx1) / 2
+  const my = (sy0 + sy1) / 2
+
+  ctx.font = 'bold 12px monospace'
+  ctx.textAlign = 'center'
+  ctx.textBaseline = 'bottom'
+
+  // Background
+  const metrics = ctx.measureText(label)
+  const pad = 4
+  ctx.fillStyle = 'rgba(0, 0, 0, 0.7)'
+  ctx.fillRect(mx - metrics.width / 2 - pad, my - 18 - pad, metrics.width + pad * 2, 18 + pad)
+
+  ctx.fillStyle = '#00ff00'
+  ctx.fillText(label, mx, my - 4)
+  ctx.restore()
+}
+
+function drawProbeAnnotation(
+  ctx: CanvasRenderingContext2D,
+  ann: CanvasAnnotation,
+  canvasW: number,
+  canvasH: number,
+) {
+  if (!props.pixelData) return
+  const rows = props.pixelData.length
+  const cols = props.pixelData[0]?.length || 0
+  if (!rows || !cols) return
+
+  const pt = ann.points[0]
+  const sx = pt.x * (canvasW / cols)
+  const sy = pt.y * (canvasH / rows)
+
+  ctx.save()
+  ctx.strokeStyle = '#00ff00'
+  ctx.lineWidth = 1.5
+
+  // Crosshair
+  const size = 8
+  ctx.beginPath()
+  ctx.moveTo(sx - size, sy)
+  ctx.lineTo(sx + size, sy)
+  ctx.moveTo(sx, sy - size)
+  ctx.lineTo(sx, sy + size)
+  ctx.stroke()
+
+  // HU value label
+  const label = ann.value != null ? `HU: ${Math.round(ann.value)}` : 'HU: --'
+  ctx.font = 'bold 12px monospace'
+  ctx.textAlign = 'left'
+  ctx.textBaseline = 'bottom'
+
+  const metrics = ctx.measureText(label)
+  const pad = 4
+  ctx.fillStyle = 'rgba(0, 0, 0, 0.7)'
+  ctx.fillRect(sx + 10 - pad, sy - 18 - pad, metrics.width + pad * 2, 18 + pad)
+
+  ctx.fillStyle = '#00ff00'
+  ctx.fillText(label, sx + 10, sy - 4)
+  ctx.restore()
+}
 
 defineExpose({ resetView, captureScreenshot, canvas })
 </script>

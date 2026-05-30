@@ -8,6 +8,7 @@ from fastapi import APIRouter, HTTPException
 from fastapi.responses import FileResponse
 from pydantic import BaseModel
 
+from app.models.response import ApiResponse
 from app.services import anonymization_service, dicom_service, log_service
 
 router = APIRouter()
@@ -35,14 +36,14 @@ class AnonymizeRequest(BaseModel):
 @router.get("/profiles")
 async def list_profiles():
     """List available anonymization profiles."""
-    return anonymization_service.get_available_profiles()
+    return ApiResponse(success=True, data=anonymization_service.get_available_profiles())
 
 
 @router.get("/profiles/{profile_name}")
 async def get_profile(profile_name: str):
     """Get details of a specific anonymization profile."""
     try:
-        return anonymization_service.get_profile(profile_name)
+        return ApiResponse(success=True, data=anonymization_service.get_profile(profile_name))
     except ValueError as e:
         raise HTTPException(status_code=404, detail=str(e))
 
@@ -93,7 +94,7 @@ async def preview_anonymization(req: PreviewRequest):
         anonymization_service.preview_anonymization,
         dcm, req.profile, req.custom_rules, req.date_offset_days, req.seed,
     )
-    return result
+    return ApiResponse(success=True, data=result)
 
 
 @router.post("/apply")
@@ -105,7 +106,7 @@ async def apply_anonymization(req: AnonymizeRequest):
         req.session_id, req.patient_id, req.profile,
         req.custom_rules, req.date_offset_days, req.seed,
     )
-    return result
+    return ApiResponse(success=True, data=result)
 
 
 @router.get("/audit/{session_id}/{patient_id}")
@@ -120,7 +121,7 @@ async def get_audit_log(session_id: str, patient_id: str):
 
     import json
     with open(audit_path) as f:
-        return json.load(f)
+        return ApiResponse(success=True, data=json.load(f))
 
 
 @router.get("/download/{session_id}/{patient_id}/{filename}")
