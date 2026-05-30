@@ -176,21 +176,28 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
+import { ref, watch, onMounted } from 'vue'
 import { useAppStore } from '@/stores/app'
 import { useAnonymization } from '@/composables/useAnonymization'
+import { useSettings } from '@/composables/useSettings'
 import { ShieldCheckIcon, CheckCircleIcon } from '@heroicons/vue/24/outline'
 
 const appStore = useAppStore()
 const anon = useAnonymization()
+const { defaultAnonProfile: selectedProfile } = useSettings()
 
 const selectedPatient = ref('')
-const selectedProfile = ref('research')
 const dateOffsetDays = ref<number | null>(null)
 const seed = ref('')
 
 onMounted(() => {
   anon.fetchProfiles()
+})
+
+watch(() => anon.profiles.value, (profiles) => {
+  if (profiles.length > 0 && !profiles.some(p => p.key === selectedProfile.value)) {
+    selectedProfile.value = profiles[0].key
+  }
 })
 
 function actionClass(action: string): string {

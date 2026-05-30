@@ -38,7 +38,8 @@
 import { ref } from 'vue'
 import AppSidebar from './AppSidebar.vue'
 import AppHeader from './AppHeader.vue'
+import { useSettings } from '@/composables/useSettings'
 
-const sidebarCollapsed = ref(false)
+const { sidebarCollapsed } = useSettings()
 const mobileMenuOpen = ref(false)
 </script>

@@ -163,6 +163,7 @@
 import { computed, ref, reactive } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useAppStore } from '@/stores/app'
+import { useSettings } from '@/composables/useSettings'
 import StatusBadge from '@/components/common/StatusBadge.vue'
 import {
   ArrowDownTrayIcon,
@@ -171,9 +172,9 @@ import {
 
 const { t } = useI18n()
 const appStore = useAppStore()
+const { defaultExportFormat: exportFormat } = useSettings()
 const selectedPatientId = ref('')
 const selectedSeriesUids = ref<Set<string>>(new Set())
-const exportFormat = ref('ct')
 const exporting = ref(false)
 const exportResult = ref<{ success: boolean; message: string } | null>(null)
 const exportResults = reactive<Record<string, { success: boolean; message: string }>>({})

@@ -188,6 +188,7 @@ import ViewerSidebar from '@/components/viewer/ViewerSidebar.vue'
 import { useTools } from '@/composables/useTools'
 import { useSegmentation } from '@/composables/useSegmentation'
 import { useFourD } from '@/composables/useFourD'
+import { useSettings } from '@/composables/useSettings'
 import { getSeriesImageIds } from '@/composables/useClientMode'
 import { registerClientLoaders } from '@/utils/clientDicomLoader'
 import type { SeriesInfo, StructInfo, DoseInfo } from '@/types'
@@ -210,6 +211,7 @@ const appStore = useAppStore()
 const tools = useTools()
 const seg = useSegmentation()
 const fourD = useFourD()
+const settings = useSettings()
 
 const windowCenter = ref(40)
 const windowWidth = ref(400)
@@ -245,8 +247,8 @@ let refreshOnAnnotationFn: (() => void) | null = null
 // Overlay state (RT structures rendered via canvas overlay — Phase 2 will use Cornerstone3D segmentation)
 const enabledStructOverlays = ref<Set<string>>(new Set())
 const enabledDoseOverlays = ref<Set<string>>(new Set())
-const overlayOpacity = ref(0.4)
-const doseOpacity = ref(0.35)
+const overlayOpacity = settings.structOpacity
+const doseOpacity = settings.doseOpacity
 const contourThickness = ref(0)
 const structOverlayCache = ref<Record<string, number[][] | null>>({})
 const doseOverlayCache = ref<Record<string, { data: number[][]; min: number; max: number } | null>>({})
@@ -258,8 +260,8 @@ const dicomTagSearch = ref('')
 const dicomTags = ref<Array<{ tag: string; name: string; value: string; vr: string }>>([])
 
 // Orientation labels
-const showOrientationLabels = ref(true)
-const orientationLabelColor = ref('#00ff00')
+const showOrientationLabels = settings.showOrientationLabels
+const orientationLabelColor = settings.orientationLabelColor
 
 // Confirmation dialog
 const showConfirmDialog = ref(false)

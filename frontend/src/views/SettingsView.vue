@@ -134,14 +134,14 @@
             </label>
             <div class="flex items-center gap-3">
               <input
-                v-model.number="defaultStructOpacity"
+                v-model.number="structOpacity"
                 type="range"
                 :min="0.05"
                 :max="1"
                 step="0.05"
                 class="flex-1 h-1.5 accent-primary-500"
               />
-              <span class="text-xs text-accent-600 dark:text-accent-400 w-12 text-right">{{ Math.round(defaultStructOpacity * 100) }}%</span>
+              <span class="text-xs text-accent-600 dark:text-accent-400 w-12 text-right">{{ Math.round(structOpacity * 100) }}%</span>
             </div>
           </div>
 
@@ -151,14 +151,14 @@
             </label>
             <div class="flex items-center gap-3">
               <input
-                v-model.number="defaultDoseOpacity"
+                v-model.number="doseOpacity"
                 type="range"
                 :min="0.05"
                 :max="1"
                 step="0.05"
                 class="flex-1 h-1.5 accent-red-500"
               />
-              <span class="text-xs text-accent-600 dark:text-accent-400 w-12 text-right">{{ Math.round(defaultDoseOpacity * 100) }}%</span>
+              <span class="text-xs text-accent-600 dark:text-accent-400 w-12 text-right">{{ Math.round(doseOpacity * 100) }}%</span>
             </div>
           </div>
 
@@ -257,6 +257,56 @@
                 ]"
               />
             </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Upload & Export -->
+      <div class="p-6 bg-white dark:bg-accent-900 rounded-xl border border-accent-200 dark:border-accent-700 shadow-card">
+        <h2 class="text-lg font-semibold text-accent-900 dark:text-white mb-4">{{ $t('settings.uploadExport') }}</h2>
+
+        <div class="space-y-4">
+          <div>
+            <label class="block text-sm font-medium text-accent-700 dark:text-accent-300 mb-1.5">
+              {{ $t('settings.uploadConcurrency') }}
+            </label>
+            <div class="flex items-center gap-3">
+              <input
+                v-model.number="uploadConcurrency"
+                type="range"
+                :min="1"
+                :max="8"
+                class="flex-1 h-1.5 accent-primary-500"
+              />
+              <span class="text-xs text-accent-600 dark:text-accent-400 w-8 text-right">{{ uploadConcurrency }}</span>
+            </div>
+          </div>
+
+          <div>
+            <label class="block text-sm font-medium text-accent-700 dark:text-accent-300 mb-1.5">
+              {{ $t('settings.defaultExportFormat') }}
+            </label>
+            <select
+              v-model="defaultExportFormat"
+              class="w-full px-3 py-2 bg-white dark:bg-accent-800 border border-accent-200 dark:border-accent-700 rounded-lg text-sm text-accent-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary-500/50"
+            >
+              <option value="ct">{{ $t('export.formatCT') }}</option>
+              <option value="red">{{ $t('export.formatRED') }}</option>
+            </select>
+          </div>
+
+          <div>
+            <label class="block text-sm font-medium text-accent-700 dark:text-accent-300 mb-1.5">
+              {{ $t('settings.defaultAnonProfile') }}
+            </label>
+            <select
+              v-model="defaultAnonProfile"
+              class="w-full px-3 py-2 bg-white dark:bg-accent-800 border border-accent-200 dark:border-accent-700 rounded-lg text-sm text-accent-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary-500/50"
+            >
+              <option value="research">Research</option>
+              <option value="clinical">Clinical</option>
+              <option value="education">Education</option>
+            </select>
           </div>
         </div>
       </div>
@@ -391,10 +441,11 @@
 </template>
 
 <script setup lang="ts">
-import { ref, watch } from 'vue'
+import { ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useAppStore } from '@/stores/app'
 import { useTheme } from '@/composables/useTheme'
+import { useSettings } from '@/composables/useSettings'
 import { XMarkIcon } from '@heroicons/vue/24/outline'
 import i18n from '@/i18n'
 
@@ -402,51 +453,15 @@ const appStore = useAppStore()
 const { isDark, toggle: toggleTheme } = useTheme()
 const { t } = useI18n()
 
+const settings = useSettings()
+const { defaultWindow, defaultOrientation, scrollSensitivity, structOpacity, doseOpacity, orientationLabelColor, panSpeed, wlSensitivity, showOrientationLabels, showOverlayInfo, sidebarCollapsed, uploadConcurrency, defaultExportFormat, defaultAnonProfile } = settings
+
 const currentLanguage = ref(localStorage.getItem('mdh_language') || 'en')
 
 function changeLanguage() {
   i18n.global.locale.value = currentLanguage.value as 'en' | 'zh-CN'
   localStorage.setItem('mdh_language', currentLanguage.value)
 }
-
-// Load settings from localStorage
-function loadSetting<T>(key: string, defaultValue: T): T {
-  try {
-    const stored = localStorage.getItem(`mdh_${key}`)
-    return stored !== null ? JSON.parse(stored) : defaultValue
-  } catch {
-    return defaultValue
-  }
-}
-
-function saveSetting(key: string, value: unknown) {
-  localStorage.setItem(`mdh_${key}`, JSON.stringify(value))
-}
-
-const defaultWindow = ref(loadSetting('defaultWindow', 'auto'))
-const defaultOrientation = ref(loadSetting('defaultOrientation', 'axial'))
-const scrollSensitivity = ref(loadSetting('scrollSensitivity', 1))
-const defaultStructOpacity = ref(loadSetting('structOpacity', 0.4))
-const defaultDoseOpacity = ref(loadSetting('doseOpacity', 0.35))
-const orientationLabelColor = ref(loadSetting('orientationLabelColor', '#00ff00'))
-const panSpeed = ref(loadSetting('panSpeed', 1))
-const wlSensitivity = ref(loadSetting('wlSensitivity', 2))
-const showOrientationLabels = ref(loadSetting('showOrientationLabels', true))
-const showOverlayInfo = ref(loadSetting('showOverlayInfo', true))
-const sidebarCollapsed = ref(loadSetting('sidebarCollapsed', false))
-
-// Persist settings changes
-watch(defaultWindow, (v) => saveSetting('defaultWindow', v))
-watch(defaultOrientation, (v) => saveSetting('defaultOrientation', v))
-watch(scrollSensitivity, (v) => saveSetting('scrollSensitivity', v))
-watch(defaultStructOpacity, (v) => saveSetting('structOpacity', v))
-watch(defaultDoseOpacity, (v) => saveSetting('doseOpacity', v))
-watch(orientationLabelColor, (v) => saveSetting('orientationLabelColor', v))
-watch(panSpeed, (v) => saveSetting('panSpeed', v))
-watch(wlSensitivity, (v) => saveSetting('wlSensitivity', v))
-watch(showOrientationLabels, (v) => saveSetting('showOrientationLabels', v))
-watch(showOverlayInfo, (v) => saveSetting('showOverlayInfo', v))
-watch(sidebarCollapsed, (v) => saveSetting('sidebarCollapsed', v))
 
 function clearSession() {
   appStore.sessionId = ''

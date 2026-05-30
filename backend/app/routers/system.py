@@ -1,11 +1,13 @@
 import subprocess
 import time
 import asyncio
+import platform
 from fastapi import APIRouter
 
 from app.models.response import ApiResponse
 
 router = APIRouter()
+_start_time = time.time()
 
 # GPU info cache (5 min TTL) to avoid repeated nvidia-smi calls
 _gpu_cache: dict = {}
@@ -55,3 +57,15 @@ def _get_gpu_info_cached() -> dict:
 @router.get("/gpu-info")
 async def get_gpu_info():
     return ApiResponse(success=True, data=await asyncio.to_thread(_get_gpu_info_cached))
+
+
+@router.get("/info")
+async def get_system_info():
+    uptime = time.time() - _start_time
+    return ApiResponse(success=True, data={
+        "version": "1.0.0",
+        "python_version": platform.python_version(),
+        "os": f"{platform.system()} {platform.release()}",
+        "uptime_seconds": int(uptime),
+        "hostname": platform.node(),
+    })
