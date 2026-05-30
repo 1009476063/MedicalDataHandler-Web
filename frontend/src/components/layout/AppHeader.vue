@@ -22,6 +22,14 @@
           </span>
         </div>
 
+        <router-link
+          to="/settings"
+          class="hidden sm:flex p-2 rounded-xl text-accent-600 dark:text-accent-400 hover:bg-accent-100 dark:hover:bg-accent-800"
+          :title="$t('sidebar.nav.settings')"
+        >
+          <Cog6ToothIcon class="w-5 h-5" />
+        </router-link>
+
         <a
           href="https://github.com/1009476063/MedVista"
           target="_blank"
@@ -39,7 +47,7 @@ import { computed } from 'vue'
 import { useRoute } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { useAppStore } from '@/stores/app'
-import { Bars3Icon, BookOpenIcon } from '@heroicons/vue/24/outline'
+import { Bars3Icon, BookOpenIcon, Cog6ToothIcon } from '@heroicons/vue/24/outline'
 
 defineProps<{ sidebarCollapsed: boolean }>()
 defineEmits<{

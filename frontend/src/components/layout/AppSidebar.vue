@@ -136,9 +136,10 @@ import SidebarLink from './SidebarLink.vue'
 import {
   SunIcon, MoonIcon, ChevronLeftIcon,
   HomeIcon, UserGroupIcon, CubeTransparentIcon,
-  ArrowUpTrayIcon, CogIcon, DocumentTextIcon,
-  BeakerIcon, TableCellsIcon, WrenchScrewdriverIcon,
+  ArrowUpTrayIcon, DocumentTextIcon,
+  BeakerIcon, WrenchScrewdriverIcon,
   ArrowsRightLeftIcon, GlobeAltIcon, ShieldCheckIcon,
+  ClipboardDocumentListIcon, MagnifyingGlassIcon,
 } from '@heroicons/vue/24/outline'
 
 interface Props {
@@ -159,17 +160,16 @@ const dataNavItems = computed(() => [
   { path: '/', label: t('sidebar.nav.dashboard'), icon: HomeIcon },
   { path: '/patients', label: t('sidebar.nav.patients'), icon: UserGroupIcon },
   { path: '/viewer', label: t('sidebar.nav.viewer'), icon: CubeTransparentIcon },
-  { path: '/data-table', label: t('sidebar.nav.dataTable'), icon: TableCellsIcon },
   { path: '/plans', label: t('sidebar.nav.plans'), icon: BeakerIcon },
   { path: '/pacs', label: t('sidebar.nav.pacs'), icon: GlobeAltIcon },
 ])
 
 const toolNavItems = computed(() => [
   { path: '/converter', label: t('sidebar.nav.converter'), icon: ArrowsRightLeftIcon },
-  { path: '/metadata', label: t('sidebar.nav.metadata'), icon: DocumentTextIcon },
+  { path: '/analysis', label: t('sidebar.nav.analysis'), icon: MagnifyingGlassIcon },
   { path: '/processing', label: t('sidebar.nav.postProcessing'), icon: WrenchScrewdriverIcon },
   { path: '/export', label: t('sidebar.nav.export'), icon: ArrowUpTrayIcon },
   { path: '/anonymization', label: t('sidebar.nav.anonymization'), icon: ShieldCheckIcon },
-  { path: '/settings', label: t('sidebar.nav.settings'), icon: CogIcon },
+  { path: '/logging', label: t('sidebar.nav.logging'), icon: ClipboardDocumentListIcon },
 ])
 </script>

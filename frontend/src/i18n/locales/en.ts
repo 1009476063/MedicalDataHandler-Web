@@ -20,6 +20,8 @@ export default {
       settings: 'Settings',
       pacs: 'PACS',
       anonymization: 'Anonymization',
+      analysis: 'Analysis',
+      logging: 'Activity Log',
     },
   },
   header: {

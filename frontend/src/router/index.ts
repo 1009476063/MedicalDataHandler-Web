@@ -77,6 +77,18 @@ const router = createRouter({
       meta: { titleKey: 'sidebar.nav.anonymization' },
     },
     {
+      path: '/analysis',
+      name: 'analysis',
+      component: () => import('@/views/AnalysisView.vue'),
+      meta: { titleKey: 'sidebar.nav.analysis' },
+    },
+    {
+      path: '/logging',
+      name: 'logging',
+      component: () => import('@/views/LoggingView.vue'),
+      meta: { titleKey: 'sidebar.nav.logging' },
+    },
+    {
       path: '/login',
       name: 'login',
       component: () => import('@/views/LoginView.vue'),
@@ -105,6 +117,8 @@ const routeImports = [
   () => import('@/views/SettingsView.vue'),
   () => import('@/views/PacsView.vue'),
   () => import('@/views/AnonymizationView.vue'),
+  () => import('@/views/AnalysisView.vue'),
+  () => import('@/views/LoggingView.vue'),
   () => import('@/views/LoginView.vue'),
 ]
 const preload = () => routeImports.forEach(loader => loader())

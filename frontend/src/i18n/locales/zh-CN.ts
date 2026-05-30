@@ -20,6 +20,8 @@ export default {
       settings: '设置',
       pacs: 'PACS',
       anonymization: '匿名化',
+      analysis: '序列分析',
+      logging: '活动日志',
     },
   },
   header: {
