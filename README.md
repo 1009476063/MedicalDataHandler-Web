@@ -131,8 +131,8 @@ A web-based medical image viewer and processing platform for radiation therapy. 
 - **Bilingual UI** — English and Simplified Chinese (zh-CN)
 - **Dark Mode** — Full dark/light theme support
 - **Responsive Layout** — Desktop and mobile-friendly interface
-- **Real-time Activity Log** — Track all processing operations
-- **Configurable Settings** — Window presets, overlay defaults, interaction speeds
+- **Real-time Activity Log** — Track all processing operations with level filtering (Info/Warning/Error/Success)
+- **Persistent Settings** — Singleton composable syncs viewer, overlay, sidebar, and export preferences across all views
 - **Security Hardened** — SSRF protection, path traversal prevention, rate limiting, secure CORS
 
 ## Architecture
@@ -194,6 +194,7 @@ MedVista/
 │   │   │   ├── useFourD          # 4D time-series state
 │   │   │   ├── useAnonymization  # Anonymization state
 │   │   │   ├── useAuth           # OIDC login/token management
+│   │   │   ├── useSettings       # Persistent app settings (singleton)
 │   │   │   └── useClientMode     # Backend availability detection
 │   │   ├── utils/
 │   │   │   ├── cornerstoneVolumeLoader.ts  # Custom volume loader
@@ -299,6 +300,7 @@ export CORS_ORIGINS=http://localhost:5173,http://localhost:3000
 | POST | `/api/auth/refresh` | Refresh JWT token |
 | POST | `/api/auth/logout` | Logout |
 | GET | `/api/auth/config` | Auth config (enabled/disabled) |
+| GET | `/api/system/info` | System info (version, Python, OS, uptime) |
 
 ## Configuration
 
