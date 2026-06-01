@@ -878,7 +878,7 @@
       <div class="p-6 bg-white dark:bg-accent-900 rounded-xl border border-accent-200 dark:border-accent-700 shadow-card">
         <h2 class="text-lg font-semibold text-accent-900 dark:text-white mb-4">{{ $t('settings.about') }}</h2>
         <div class="space-y-2 text-sm text-accent-600 dark:text-accent-400">
-          <p class="text-base font-semibold text-accent-900 dark:text-white">MedVista v1.1.0</p>
+          <p class="text-base font-semibold text-accent-900 dark:text-white">MedVista v2.0.0</p>
           <p>{{ $t('settings.aboutDesc') }}</p>
           <a
             href="https://github.com/1009476063/MedVista"

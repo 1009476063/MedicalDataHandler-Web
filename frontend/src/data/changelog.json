@@ -1,5 +1,41 @@
 [
   {
+    "version": "2.0.0",
+    "date": "2026-06-01",
+    "changes": [
+      { "type": "feature", "text_zh": "AI 集成：多切片分析、智能结构重命名、AI 窗宽窗位、燃烧标注检测、一键生成 SR 报告", "text_en": "AI Integration: multi-slice analysis, intelligent structure rename, AI windowing, burned-in annotation detection, one-click SR generation" },
+      { "type": "feature", "text_zh": "PET-CT 融合：双体积叠加、混合比控制、SUV 计算、自动配对检测", "text_en": "PET-CT Fusion: dual-volume overlay, blend ratio controls, SUV calculation, auto-detection" },
+      { "type": "feature", "text_zh": "DICOM Worklist（MWL）：远程 MWL 查询与显示", "text_en": "DICOM Modality Worklist (MWL): remote query and display" },
+      { "type": "feature", "text_zh": "DICOM 结构化报告（SR）：AI 分析结果一键生成 SR 文档", "text_en": "DICOM Structured Reports (SR): one-click SR generation from AI findings" },
+      { "type": "feature", "text_zh": "DICOM 打印：打印服务管理、作业提交与状态追踪", "text_en": "DICOM Print: printer management, job submission, status tracking" },
+      { "type": "feature", "text_zh": "增强匿名化：配置文件模式、自定义规则、日期偏移、预览模式、审计日志", "text_en": "Enhanced Anonymization: profile-based, custom rules, date shifting, preview mode, audit log" },
+      { "type": "feature", "text_zh": "后处理：HU-RED 转换（450+ 标定点）、TG-263 自动重命名、剂量合并、NRRD 导出", "text_en": "Post-Processing: HU-to-RED conversion (450+ points), TG-263 auto-rename, dose summation, NRRD export" },
+      { "type": "feature", "text_zh": "序列分析：自动分类 ADC/DWI/DCE/MG/US、DCE 期相检测、DWI b 值分析", "text_en": "Sequence Analysis: auto-classify ADC/DWI/DCE/MG/US, DCE phase detection, DWI b-value analysis" },
+      { "type": "feature", "text_zh": "开发者体验：SSE 进度流、持久化设置单例、系统信息端点", "text_en": "Developer Experience: SSE progress streaming, persistent settings singleton, system info endpoint" },
+      { "type": "improvement", "text_zh": "内存管理：磁盘像素存储、会话大小限制、LRU 缓存", "text_en": "Memory management: disk-based pixel storage, session size limits, LRU caches" },
+      { "type": "improvement", "text_zh": "安全：SSRF 防护、路径遍历防护、速率限制、API 密钥遮蔽", "text_en": "Security: SSRF protection, path traversal prevention, rate limiting, API key masking" },
+      { "type": "improvement", "text_zh": "性能：Cornerstone3D 代码分割、懒加载、虚拟滚动", "text_en": "Performance: Cornerstone3D code splitting, lazy-loaded imports, virtual scrolling" },
+      { "type": "improvement", "text_zh": "离线支持：Service Worker SHA-256 请求体哈希缓存", "text_en": "Offline support: Service Worker SHA-256 body-hashed cache keys" },
+      { "type": "improvement", "text_zh": "WebWorker：OffscreenCanvas 渲染、后台 DICOM 解析", "text_en": "WebWorker: OffscreenCanvas rendering, background DICOM parsing" },
+      { "type": "improvement", "text_zh": "HTTP/2 多路复用与自动降级", "text_en": "HTTP/2 multiplexing with automatic fallback" },
+      { "type": "improvement", "text_zh": "双语界面（英文 + 简体中文）", "text_en": "Bilingual UI (English + Simplified Chinese)" },
+      { "type": "fix", "text_zh": "修复 session_id 路径遍历漏洞", "text_en": "Fix path traversal in session_id validation" },
+      { "type": "fix", "text_zh": "修复缓存键跨会话污染", "text_en": "Fix cache key cross-session pollution" },
+      { "type": "fix", "text_zh": "修复查看器设置中窗宽 0 被当作 null 的问题", "text_en": "Fix window 0 treated as null in viewer settings" },
+      { "type": "fix", "text_zh": "修复负切片索引处理", "text_en": "Fix negative slice index handling" },
+      { "type": "fix", "text_zh": "修复 SSE 转换完成后挂起", "text_en": "Fix SSE hang on conversion completion" },
+      { "type": "fix", "text_zh": "修复 Cornerstone3D 代码分割内存泄漏", "text_en": "Fix Cornerstone3D code-splitting memory leak" },
+      { "type": "fix", "text_zh": "修复 useAI、useFourD、useClientMode 内存泄漏", "text_en": "Fix useAI, useFourD, useClientMode memory leaks" },
+      { "type": "fix", "text_zh": "修复 ImageSliceViewer watcher 过度触发", "text_en": "Fix ImageSliceViewer watcher over-triggering" },
+      { "type": "fix", "text_zh": "修复 Service Worker POST 缓存漏洞", "text_en": "Fix Service Worker POST caching vulnerability" },
+      { "type": "fix", "text_zh": "修复 Auth guard 初始渲染竞态条件", "text_en": "Fix Auth guard race condition on initial render" },
+      { "type": "fix", "text_zh": "修复 SR session 索引 bug 导致 AI 报告无法创建", "text_en": "Fix SR session index bug preventing AI-generated reports" },
+      { "type": "fix", "text_zh": "修复 GET /config 响应中暴露 API 密钥", "text_en": "Fix API key exposed in GET /config response" },
+      { "type": "fix", "text_zh": "修复 API 响应中错误消息泄露", "text_en": "Fix error message leakage in API responses" },
+      { "type": "fix", "text_zh": "修复 AI 端点中脆弱的 JSON 解析", "text_en": "Fix fragile JSON parsing in AI endpoints" }
+    ]
+  },
+  {
     "version": "1.1.0",
     "date": "2026-05-30",
     "changes": [

@@ -1,7 +1,7 @@
 export default {
   sidebar: {
     brand: 'MedVista',
-    version: 'v1.1.0',
+    version: 'v2.0.0',
     dataSection: 'Data',
     toolsSection: 'Tools',
     lightMode: 'Light Mode',
