@@ -163,7 +163,9 @@ defineProps<{
 
 const emit = defineEmits<{
   'select-label': [id: number]
+  'add-label': []
   'update-label-color': [id: number, color: string]
+  'rename-label': [id: number, name: string]
   'remove-label': [id: number]
   erode: []
   dilate: []
@@ -179,15 +181,13 @@ const emit = defineEmits<{
 const textPrompt = ref('')
 
 function addNewLabel() {
-  const maxId = Math.max(0, ...([] as number[]))
-  const id = Date.now() % 100
-  emit('update-label-color', id, '#FF0000')
+  emit('add-label')
 }
 
 function renameLabel(label: ROILabel) {
   const newName = prompt(t('roi.renamePrompt'), label.name)
   if (newName && newName !== label.name) {
-    // Parent handles via event
+    emit('rename-label', label.id, newName)
   }
 }
 

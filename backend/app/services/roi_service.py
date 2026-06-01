@@ -604,8 +604,11 @@ class ROIService:
             from scipy.ndimage import zoom
             factors = [t / s for t, s in zip(lm.shape, mask_volume.shape)]
             mask_volume = zoom(mask_volume, factors, order=0).astype(np.uint8)
-        # Set voxels where mask is nonzero
-        lm.volume[mask_volume > 0] = label
+        # Set voxels where mask is nonzero, preserving existing labels at other voxels
+        mask_bool = mask_volume > 0
+        # Only overwrite background (0) or same label to avoid destroying other labels
+        overwrite = mask_bool & ((lm.volume == 0) | (lm.volume == label))
+        lm.volume[overwrite] = label
         lm.updated_at = datetime.now(timezone.utc).isoformat()
         return True
 

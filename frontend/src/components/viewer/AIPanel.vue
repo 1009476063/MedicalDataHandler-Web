@@ -149,6 +149,11 @@ onMounted(() => {
       </div>
     </div>
 
+    <!-- Error -->
+    <div v-if="!loading && !analysisResult && progressMessage" class="bg-red-900/30 border border-red-500/30 rounded p-2">
+      <p class="text-xs text-red-400">{{ progressMessage }}</p>
+    </div>
+
     <!-- Results -->
     <div v-if="analysisResult && !loading" class="space-y-2">
       <h4 class="text-xs font-semibold text-slate-300 uppercase tracking-wide">

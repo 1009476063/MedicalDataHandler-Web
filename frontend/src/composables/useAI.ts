@@ -26,7 +26,7 @@ export function useAI() {
       const res = await axios.get('/api/ai/models')
       models.value = res.data?.data || []
       return models.value
-    } catch {
+    } catch (err) {
       models.value = []
       return []
     }
@@ -143,6 +143,8 @@ export function useAI() {
             throw err
           }
         }
+        // Check abort before waiting
+        if (controller.signal.aborted) return
         await new Promise((r) => setTimeout(r, 1000))
       }
     } finally {

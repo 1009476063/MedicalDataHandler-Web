@@ -346,10 +346,18 @@ class AIService:
         try:
             # Handle markdown code blocks
             if "```" in content:
-                json_str = content.split("```")[1]
-                if json_str.startswith("json"):
-                    json_str = json_str[4:]
-                return json.loads(json_str.strip())
+                # Find the first code block content
+                start = content.find("```")
+                if start != -1:
+                    # Skip opening ``` and optional language tag
+                    line_start = content.find("\n", start)
+                    if line_start != -1:
+                        end = content.find("```", line_start + 1)
+                        if end != -1:
+                            json_str = content[line_start + 1:end].strip()
+                            if json_str.startswith("json"):
+                                json_str = json_str[4:]
+                            return json.loads(json_str)
             return json.loads(content)
         except json.JSONDecodeError:
             return {"findings": [], "summary": content, "modality_guess": "unknown"}
@@ -404,10 +412,16 @@ class AIService:
 
         try:
             if "```" in content:
-                json_str = content.split("```")[1]
-                if json_str.startswith("json"):
-                    json_str = json_str[4:]
-                return json.loads(json_str.strip())
+                start = content.find("```")
+                if start != -1:
+                    line_start = content.find("\n", start)
+                    if line_start != -1:
+                        end = content.find("```", line_start + 1)
+                        if end != -1:
+                            json_str = content[line_start + 1:end].strip()
+                            if json_str.startswith("json"):
+                                json_str = json_str[4:]
+                            return json.loads(json_str)
             return json.loads(content)
         except json.JSONDecodeError:
             return {
@@ -599,7 +613,7 @@ class AIService:
 
             ref_mask = (ref_lm.volume == ref_label).astype(np.uint8)
 
-            # Resize reference mask if shapes don't differ
+            # Resize reference mask if shapes differ
             if ref_mask.shape != tuple(pixel_data.shape):
                 from scipy.ndimage import zoom
                 factors = [t / s for t, s in zip(pixel_data.shape, ref_mask.shape)]
@@ -649,12 +663,10 @@ class AIService:
         depth = pixel_data.shape[0]
 
         # Send MIP + a few key slices for localization
-        b64_mip = await asyncio.to_thread(self._pixel_to_base64, pixel_data, "mip")
         b64_multi = await asyncio.to_thread(self._pixel_to_base64, pixel_data, "multi")
 
         prompt = (
-            "This is a medical image volume. The first image is a MIP (maximum intensity projection), "
-            "the second shows 5 evenly-spaced slices. "
+            "This is a medical image volume showing 5 evenly-spaced slices. "
             "Identify which slices (0-indexed, approximate) contain abnormalities or structures of interest. "
             "Return JSON: {\"slice_indices\": [int, ...], \"description\": str}"
         )

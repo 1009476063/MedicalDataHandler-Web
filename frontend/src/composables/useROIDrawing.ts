@@ -271,6 +271,7 @@ export function useROIDrawing() {
     sessionId: string,
     patientId: string,
     seriesUid: string,
+    modelId?: string,
   ): Promise<void> {
     if (!activeLabelMapId.value) return
     aiSegLoading.value = true
@@ -283,6 +284,7 @@ export function useROIDrawing() {
         series_uid: seriesUid,
         label_map_id: activeLabelMapId.value,
         label: activeLabel.value,
+        model_id: modelId,
       })
       const jobId = res.data?.data?.job_id
       if (jobId) {
@@ -300,6 +302,7 @@ export function useROIDrawing() {
     patientId: string,
     seriesUid: string,
     textPrompt: string,
+    modelId?: string,
   ): Promise<void> {
     if (!activeLabelMapId.value) return
     aiSegLoading.value = true
@@ -313,6 +316,7 @@ export function useROIDrawing() {
         text_prompt: textPrompt,
         label_map_id: activeLabelMapId.value,
         label: activeLabel.value,
+        model_id: modelId,
       })
       const jobId = res.data?.data?.job_id
       if (jobId) {
@@ -331,6 +335,7 @@ export function useROIDrawing() {
     seriesUid: string,
     refLabelMapId: string,
     refLabel: number,
+    modelId?: string,
   ): Promise<void> {
     if (!activeLabelMapId.value) return
     aiSegLoading.value = true
@@ -345,6 +350,7 @@ export function useROIDrawing() {
         ref_label: refLabel,
         label_map_id: activeLabelMapId.value,
         label: activeLabel.value,
+        model_id: modelId,
       })
       const jobId = res.data?.data?.job_id
       if (jobId) {
@@ -393,9 +399,13 @@ export function useROIDrawing() {
 
   async function pollAISegResults(jobId: string): Promise<void> {
     const maxAttempts = 60
+    const controller = new AbortController()
+    pollAbortController = controller
+
     for (let i = 0; i < maxAttempts; i++) {
+      if (controller.signal.aborted) return
       try {
-        const res = await axios.get(`/api/ai/jobs/${jobId}`)
+        const res = await axios.get(`/api/ai/jobs/${jobId}`, { signal: controller.signal })
         const job = res.data?.data
         if (job) {
           aiSegProgress.value = job.progress || 0
@@ -409,6 +419,7 @@ export function useROIDrawing() {
           }
         }
       } catch (err) {
+        if (controller.signal.aborted) return
         if (err instanceof Error && err.message.includes('failed')) throw err
       }
       await new Promise((r) => setTimeout(r, 1000))
