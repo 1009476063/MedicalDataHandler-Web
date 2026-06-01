@@ -52,30 +52,30 @@
           <!-- Sequence Cards -->
           <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
             <div
-              v-for="seq in analysisResult.sequences"
+              v-for="seq in analysisResult.all_series"
               :key="seq.series_uid"
               class="p-4 bg-white dark:bg-accent-800 rounded-xl border transition-colors"
-              :class="seq.auto_selected
+              :class="seq.candidate_for
                 ? 'border-primary-400 dark:border-primary-500 ring-1 ring-primary-200 dark:ring-primary-800'
                 : 'border-accent-200 dark:border-accent-700'"
             >
               <div class="flex items-start justify-between mb-2">
                 <div>
                   <span class="inline-block px-2 py-0.5 text-xs font-medium bg-primary-100 dark:bg-primary-900/40 text-primary-700 dark:text-primary-300 rounded-full mb-1">
-                    {{ seq.inferred_type || seq.modality }}
+                    {{ seq.type || seq.modality }}
                   </span>
                   <h4 class="text-sm font-medium text-accent-900 dark:text-white">{{ seq.description || 'Unnamed' }}</h4>
                 </div>
-                <span v-if="seq.auto_selected" class="px-2 py-0.5 text-xs font-medium bg-green-100 dark:bg-green-900/40 text-green-700 dark:text-green-300 rounded-full">
+                <span v-if="seq.candidate_for" class="px-2 py-0.5 text-xs font-medium bg-green-100 dark:bg-green-900/40 text-green-700 dark:text-green-300 rounded-full">
                   {{ $t('sequence.selected') }}
                 </span>
               </div>
               <div class="space-y-1 text-xs text-accent-500 dark:text-accent-400">
                 <p>{{ $t('sequence.seriesModality') }}: {{ seq.modality }}</p>
                 <p>{{ $t('sequence.seriesCount') }}: {{ seq.file_count }}</p>
-                <p v-if="seq.phase_count > 1">{{ $t('sequence.phases', { count: seq.phase_count }) }}</p>
-                <p v-if="seq.b_value_count">{{ $t('sequence.bvalues', { count: seq.b_value_count }) }}</p>
-                <p v-if="seq.selection_reason" class="text-primary-600 dark:text-primary-400">{{ seq.selection_reason }}</p>
+                <p v-if="seq.dwi_info">{{ seq.dwi_info }}</p>
+                <p v-if="seq.dce_info">{{ seq.dce_info }}</p>
+                <p v-if="seq.reason" class="text-primary-600 dark:text-primary-400">{{ seq.reason }}</p>
               </div>
             </div>
           </div>

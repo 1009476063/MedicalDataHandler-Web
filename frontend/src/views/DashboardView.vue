@@ -283,6 +283,10 @@ async function uploadFiles(files: File[]) {
     await appStore.uploadFiles(files, (progress: number) => {
       uploadProgress.value = progress
     })
+    // Navigate to viewer after successful upload
+    if (appStore.selectedSeriesUid) {
+      router.push('/viewer')
+    }
   } finally {
     uploading.value = false
     uploadProgress.value = 0

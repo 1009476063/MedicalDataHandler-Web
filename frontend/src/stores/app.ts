@@ -56,7 +56,7 @@ export const useAppStore = defineStore('app', () => {
 
     const backendUp = await checkBackend()
 
-    if (!backendUp || hasMedicalFormat) {
+    if (!backendUp && !hasMedicalFormat) {
       await loadClientFilesAction(files)
       uploading.value = false
       return
@@ -74,6 +74,11 @@ export const useAppStore = defineStore('app', () => {
       isClientMode.value = false
       if (patients.value.length > 0) {
         selectedPatientId.value = patients.value[0].patient_id
+        // Auto-select first series for the viewer
+        const firstPatient = patients.value[0]
+        if (firstPatient.studies?.length > 0 && firstPatient.studies[0].series?.length > 0) {
+          selectedSeriesUid.value = firstPatient.studies[0].series[0].series_uid
+        }
       }
     } catch {
       await loadClientFilesAction(files)

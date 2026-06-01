@@ -513,8 +513,8 @@ async function analyzeSequences() {
       confidence_threshold: analysisConfidenceThreshold.value,
       dce_min_file_count: dceMinFileCount.value,
     })
-    analysisResult.value = res.data
-    addLog(t('sequence.scanDone', { count: res.data.all_series.length }), 'success')
+    analysisResult.value = res.data.data
+    addLog(t('sequence.scanDone', { count: res.data.data.all_series.length }), 'success')
   } catch {
     addLog(t('sequence.scanFailed'), 'error')
   } finally {

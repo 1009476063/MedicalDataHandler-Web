@@ -23,7 +23,7 @@ export function useAI() {
 
   async function fetchModels(): Promise<AIModel[]> {
     try {
-      const res = await axios.get('/api/ai/models')
+      const res = await axios.post('/api/ai/models', {})
       models.value = res.data?.data || []
       return models.value
     } catch (err) {

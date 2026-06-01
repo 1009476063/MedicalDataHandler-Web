@@ -230,7 +230,7 @@ class AIService:
         """Load pixel data from disk cache."""
         from app.services.dicom_service import dicom_service
 
-        session = dicom_service.get_session(session_id)
+        session = dicom_service.sessions.get(session_id)
         if not session:
             return None
         patient = session.get("patients", {}).get(patient_id)

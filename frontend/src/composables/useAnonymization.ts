@@ -71,7 +71,7 @@ export function useAnonymization() {
 
   async function fetchProfiles() {
     const resp = await axios.get('/api/anonymization/profiles')
-    profiles.value = resp.data
+    profiles.value = resp.data.data || resp.data
   }
 
   async function previewAnonymization(
@@ -93,8 +93,8 @@ export function useAnonymization() {
         date_offset_days: dateOffsetDays ?? null,
         seed: seed || '',
       })
-      preview.value = resp.data
-      return resp.data as AnonPreview
+      preview.value = resp.data.data || resp.data
+      return preview.value as AnonPreview
     } catch (e: unknown) {
       error.value = e instanceof Error ? e.message : 'Preview failed'
       throw e
@@ -122,8 +122,8 @@ export function useAnonymization() {
         date_offset_days: dateOffsetDays ?? null,
         seed: seed || null,
       })
-      result.value = resp.data
-      return resp.data as AnonResult
+      result.value = resp.data.data || resp.data
+      return result.value as AnonResult
     } catch (e: unknown) {
       error.value = e instanceof Error ? e.message : 'Anonymization failed'
       throw e
@@ -134,7 +134,7 @@ export function useAnonymization() {
 
   async function getAuditLog(sessionId: string, patientId: string) {
     const resp = await axios.get(`/api/anonymization/audit/${sessionId}/${patientId}`)
-    return resp.data
+    return resp.data.data || resp.data
   }
 
   async function validateCompliance(
@@ -149,7 +149,7 @@ export function useAnonymization() {
       file_id: fileId || null,
       profile,
     })
-    return resp.data as ComplianceResult
+    return (resp.data.data || resp.data) as ComplianceResult
   }
 
   async function detectBurnedIn(
@@ -162,7 +162,7 @@ export function useAnonymization() {
       patient_id: patientId,
       file_id: fileId || null,
     })
-    return resp.data as BurnedInResult
+    return (resp.data.data || resp.data) as BurnedInResult
   }
 
   async function detectBurnedInAi(
@@ -177,7 +177,7 @@ export function useAnonymization() {
       file_id: fileId || null,
       model_id: modelId || 'gpt-4o-mini',
     })
-    return resp.data as AIBurnedInResult
+    return (resp.data.data || resp.data) as AIBurnedInResult
   }
 
   async function validateComplianceAi(
@@ -192,7 +192,7 @@ export function useAnonymization() {
       profile,
       model_id: modelId || 'gpt-4o-mini',
     })
-    return resp.data as AIComplianceResult
+    return (resp.data.data || resp.data) as AIComplianceResult
   }
 
   return {
