@@ -9,11 +9,12 @@ import json
 import os
 from pathlib import Path
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import FileResponse, StreamingResponse
 from pydantic import BaseModel
 
 from app.models.response import ApiResponse
+from app.utils.rate_limit import limiter
 from app.services import dicom_converter_service as converter
 from app.services.dicom_service import dicom_service, MAX_CONCURRENT_UPLOADS, MAX_CONCURRENT_CONVERSIONS
 from app.services.log_service import log_service
@@ -39,14 +40,16 @@ class AnonymizeRequest(BaseModel):
 
 
 @router.post("/scan")
-async def scan_series(req: ScanRequest):
+@limiter.limit("20/minute")
+async def scan_series(request: Request, req: ScanRequest):
     """Scan all DICOM series for a patient and return series info."""
     result = converter.scan_patient_series(req.session_id, req.patient_id)
     return ApiResponse(success=True, data=result)
 
 
 @router.post("/convert")
-async def convert_to_nifti(req: ConvertRequest):
+@limiter.limit("5/minute")
+async def convert_to_nifti(request: Request, req: ConvertRequest):
     """Convert DICOM series to NIfTI format (synchronous).
 
     Triggers conversion in a background thread and returns the results
@@ -136,7 +139,8 @@ async def convert_to_nifti_stream(req: ConvertRequest):
 
 
 @router.post("/anonymize")
-async def anonymize_dicoms(req: AnonymizeRequest):
+@limiter.limit("5/minute")
+async def anonymize_dicoms(request: Request, req: AnonymizeRequest):
     """Anonymize DICOM files for a patient (strip PHI)."""
     import asyncio
     result = await asyncio.to_thread(

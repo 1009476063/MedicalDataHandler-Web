@@ -2,17 +2,12 @@
   <div class="h-full flex flex-col animate-fade-in">
     <div class="flex items-center justify-between px-4 py-2 border-b border-accent-200 dark:border-accent-700 bg-white dark:bg-accent-900">
       <h1 class="text-lg font-semibold text-accent-900 dark:text-white">{{ $t('pacs.title') }}</h1>
-      <button
-        class="px-3 py-1.5 text-xs bg-primary-500 hover:bg-primary-600 text-white rounded-lg transition-colors"
-        @click="showConnectDialog = true"
-      >
-        {{ $t('pacs.connect') }}
-      </button>
     </div>
 
     <div class="flex-1 p-4 overflow-y-auto">
       <PacsBrowser
         :connections="dicomweb.connections.value"
+        :connections-ready="dicomweb.connectionsReady.value"
         :studies="dicomweb.studies.value"
         :series-list="dicomweb.series.value"
         @connect="showConnectDialog = true"

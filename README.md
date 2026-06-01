@@ -4,16 +4,54 @@
 
 # MedVista
 
-A web-based medical image viewer and processing platform for radiation therapy. Supports DICOM, NIfTI, NRRD, and MHA formats with WebGL-powered 3D rendering, structure/dose overlays, RT plan analysis, and PACS connectivity.
+A web-based medical image viewer and processing platform for radiation therapy. Supports DICOM, NIfTI, NRRD, and MHA formats with WebGL-powered 3D rendering, structure/dose overlays, RT plan analysis, PACS connectivity, and AI-powered analysis.
 
 **Live Demo:** https://medical.1661688.xyz
 
+![Version](https://img.shields.io/badge/version-2.0.0-059669)
 ![Vue 3](https://img.shields.io/badge/Vue-3-42b883?logo=vue.js)
 ![FastAPI](https://img.shields.io/badge/FastAPI-0.115-009688?logo=fastapi)
 ![Python](https://img.shields.io/badge/Python-3.10+-3776ab?logo=python)
 ![TypeScript](https://img.shields.io/badge/TypeScript-5-3178c6?logo=typescript)
 ![Tailwind CSS](https://img.shields.io/badge/Tailwind-3.4-06b6d4?logo=tailwindcss)
 ![Cornerstone3D](https://img.shields.io/badge/Cornerstone3D-4.22-ff6b35)
+
+## Why MedVista?
+
+MedVista is not just another DICOM viewer — it is a **complete radiation therapy imaging platform** that combines clinical-grade visualization with AI-powered intelligence, all running in a single web application.
+
+### Unique Advantages
+
+**1. Full RT Workflow Coverage**
+Unlike general-purpose DICOM viewers, MedVista covers the entire radiation therapy pipeline: CT/MRI/PET viewing, RT structure contour visualization, dose distribution analysis, RT plan inspection, and TG-263 compliant structure naming — all in one tool.
+
+**2. AI-Integrated Analysis**
+MedVista embeds AI directly into the clinical workflow:
+- **Multi-slice analysis** — sends 5 uniformly-distributed slices or MIP projection to vision models for richer context
+- **Intelligent structure rename** — LLM-powered fuzzy matching maps non-standard DICOM structure names to TG-263 standards
+- **Smart windowing** — AI suggests optimal window width/level based on modality and anatomy
+- **Burned-in annotation detection** — vision AI identifies patient-identifiable text burned into pixel data
+- **One-click SR generation** — AI findings convert directly into DICOM Structured Reports
+
+**3. PET-CT Fusion with SUV**
+First-class PET-CT fusion with automatic series pairing, adjustable blend ratio, and real-time SUV (Standardized Uptake Value) calculation — features typically found only in dedicated oncology workstations.
+
+**4. Client-Server Hybrid Architecture**
+MedVista works both with and without a backend. In client-only mode, DICOM parsing, rendering, and measurement all happen in the browser using WebWorkers and OffscreenCanvas. This enables offline clinical review, air-gapped environments, and zero-install deployment.
+
+**5. Production-Grade Memory Management**
+Built for real clinical datasets (10,000+ files, multi-GB studies):
+- Disk-based pixel storage with numpy .npy format
+- LRU caches with bounded memory
+- Streaming volume transfer in 4MB chunks
+- Background slice prefetching
+- Virtual scrolling for large tag tables
+
+**6. DICOM Protocol Native**
+Full DICOMweb implementation (QIDO-RS, WADO-RS, STOW-RS) plus Modality Worklist, Structured Reports, and DICOM Print — not a proprietary connector, but standards-based PACS integration.
+
+**7. Open Source & Self-Hosted**
+MIT licensed, no vendor lock-in. Deploy on-premise for HIPAA/GDPR compliance. Configure any OpenAI-compatible API for AI features — no mandatory cloud subscription.
 
 ## Features
 
@@ -55,6 +93,21 @@ A web-based medical image viewer and processing platform for radiation therapy. 
 ### RT Plans
 - **Plan Viewer** — Beam summary with energy, gantry angle, and weight
 - **Fractionation Display** — Number of fractions, dose per fraction, total dose
+
+### PET-CT Fusion
+- **Dual-Volume Overlay** — Overlay PET on CT in the same viewport using Cornerstone3D multi-volume rendering
+- **Blend Controls** — Adjustable blend ratio (0-100%) for PET opacity
+- **Blend Mode Selection** — Additive or default blending modes
+- **SUV Display** — Standardized Uptake Value calculation from DICOM metadata (RescaleSlope, PatientWeight, RadiopharmaceuticalDose)
+- **Auto-Detection** — Automatically finds CT/PET series pairs within the same study
+- **PET Presets** — Optimized window/level preset for PET (center: 2.5, width: 15)
+
+### AI Integration
+- **OpenAI-Compatible API** — Call any vision model (GPT-4o, Claude, etc.) for medical image analysis
+- **SSE Progress Streaming** — Real-time progress updates during analysis
+- **Structured Findings** — JSON-structured results with region, description, severity, and confidence
+- **Custom Prompts** — User-defined analysis prompts for specialized tasks
+- **Offline Fallback** — Simulated analysis when no API is configured
 
 ### DICOMweb / PACS Connectivity
 - **QIDO-RS Query** — Search studies/series/instances on remote PACS
@@ -212,6 +265,19 @@ MedVista/
 │   └── vite.config.ts
 └── docs/                         # Competitor analysis
 ```
+
+## Documentation
+
+| Guide | Description |
+|-------|-------------|
+| [Getting Started](docs/user-guide/getting-started.md) | Installation, setup, first launch |
+| [3D Viewer](docs/user-guide/viewer.md) | Viewer tools, fusion, AI analysis, 4D |
+| [Converter](docs/user-guide/converter.md) | DICOM to NIfTI/NRRD conversion |
+| [Anonymization](docs/user-guide/anonymization.md) | DICOM anonymization profiles and custom rules |
+| [API Reference](docs/api/README.md) | Full REST API documentation |
+| [Architecture](docs/dev/architecture.md) | System design and data flow |
+| [Development Setup](docs/dev/setup.md) | Local development environment |
+| [Contributing](docs/dev/contributing.md) | Code standards, PR workflow |
 
 ## Quick Start
 

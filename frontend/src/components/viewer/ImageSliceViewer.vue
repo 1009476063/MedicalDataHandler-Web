@@ -195,17 +195,12 @@ watch(
 )
 
 watch(
-  () => props.pixelData,
+  () => [props.pixelData, props.windowCenter, props.windowWidth, props.rotation, props.flipH, props.flipV],
   () => renderSlice()
 )
 
 watch(
-  () => [props.windowCenter, props.windowWidth],
-  () => renderSlice()
-)
-
-watch(
-  () => [props.overlays, props.rotation, props.flipH, props.flipV],
+  () => props.overlays,
   () => renderSlice(),
   { deep: true }
 )

@@ -47,6 +47,112 @@ FULL_TAGS = CLINICAL_TRIAL_TAGS + [
     "Laterality", "BodyPartExamined",
 ]
 
+# ============================================================
+# Compliance profiles (HIPAA / GDPR / PS3.15)
+# ============================================================
+
+# HIPAA Safe Harbor: 18 identifiers that must be removed
+HIPAA_18_IDENTIFIERS = [
+    (0x0010, 0x0010),  # PatientName
+    (0x0010, 0x0020),  # PatientID
+    (0x0010, 0x0030),  # PatientBirthDate
+    (0x0010, 0x0040),  # PatientSex
+    (0x0008, 0x0050),  # AccessionNumber
+    (0x0008, 0x0080),  # InstitutionName
+    (0x0008, 0x0081),  # InstitutionAddress
+    (0x0008, 0x1070),  # OperatorsName
+    (0x0008, 0x1050),  # PerformingPhysicianName
+    (0x0008, 0x0090),  # ReferringPhysicianName
+    (0x0010, 0x1000),  # OtherPatientIDs
+    (0x0010, 0x1001),  # OtherPatientNames
+    (0x0010, 0x2154),  # PatientTelephoneNumbers
+    (0x0010, 0x21D0),  # PatientAge
+    (0x0010, 0x21D1),  # PatientSize
+    (0x0010, 0x21D2),  # PatientWeight
+    (0x0010, 0x4000),  # PatientComments
+    (0x0040, 0x0275),  # RequestAttributesSequence
+]
+
+HIPAA_18_TAG_NAMES = [
+    "PatientName", "PatientID", "PatientBirthDate", "PatientSex",
+    "AccessionNumber", "InstitutionName", "InstitutionAddress",
+    "OperatorsName", "PerformingPhysicianName", "ReferringPhysicianName",
+    "OtherPatientIDs", "OtherPatientNames", "PatientTelephoneNumbers",
+    "PatientAge", "PatientSize", "PatientWeight",
+    "PatientComments", "RequestAttributesSequence",
+]
+
+HIPAA_SAFE_HARBOR_TAGS = HIPAA_18_TAG_NAMES + [
+    "StudyID", "StudyDate", "StudyTime",
+    "ContentDate", "ContentTime",
+    "InstanceCreationDate", "InstanceCreationTime",
+    "DeviceSerialNumber", "StationName",
+    "StudyDescription", "SeriesDescription",
+]
+
+GDPR_ERASURE_TAGS = HIPAA_SAFE_HARBOR_TAGS + [
+    "Manufacturer", "ManufacturerModelName",
+    "ProtocolName", "FrameOfReferenceUID",
+    "Laterality", "BodyPartExamined",
+]
+
+PS315_BASIC_TAGS = [
+    "PatientName", "PatientID", "PatientBirthDate", "PatientSex",
+    "AccessionNumber", "InstitutionName", "InstitutionAddress",
+    "ReferringPhysicianName", "PerformingPhysicianName", "OperatorsName",
+    "DeviceSerialNumber", "StationName",
+]
+
+PS315_ENHANCED_TAGS = PS315_BASIC_TAGS + [
+    "OtherPatientIDs", "OtherPatientNames",
+    "PatientAge", "PatientSize", "PatientWeight",
+    "PatientComments", "PatientTelephoneNumbers",
+    "RequestAttributesSequence",
+    "StudyDescription", "SeriesDescription",
+    "InstitutionalDepartmentName",
+    "NameOfPhysiciansReadingStudy",
+    "PhysiciansOfRecord",
+]
+
+COMPLIANCE_PROFILES = {
+    "hipaa_safe_harbor": {
+        "name": "HIPAA Safe Harbor",
+        "description": "Remove all 18 HIPAA identifiers. Dates offset, UIDs replaced, private tags removed.",
+        "tags": HIPAA_SAFE_HARBOR_TAGS,
+        "replace_uids": True,
+        "offset_dates": True,
+        "remove_private": True,
+        "standard": "HIPAA",
+    },
+    "gdpr_erasure": {
+        "name": "GDPR Article 17",
+        "description": "Maximum de-identification per GDPR right to erasure. Retain minimum dataset for research.",
+        "tags": GDPR_ERASURE_TAGS,
+        "replace_uids": True,
+        "offset_dates": True,
+        "remove_private": True,
+        "standard": "GDPR",
+    },
+    "ps315_basic": {
+        "name": "PS3.15 Basic",
+        "description": "DICOM PS3.15 Basic Application Level Confidentiality Profile.",
+        "tags": PS315_BASIC_TAGS,
+        "replace_uids": False,
+        "offset_dates": False,
+        "remove_private": True,
+        "standard": "DICOM",
+    },
+    "ps315_enhanced": {
+        "name": "PS3.15 Enhanced",
+        "description": "DICOM PS3.15 Enhanced profile. Removes additional institution and physician info.",
+        "tags": PS315_ENHANCED_TAGS,
+        "replace_uids": True,
+        "offset_dates": True,
+        "remove_private": True,
+        "standard": "DICOM",
+    },
+}
+
 PROFILES = {
     "research": {
         "name": "Research",
@@ -69,6 +175,7 @@ PROFILES = {
         "replace_uids": True,
         "offset_dates": True,
     },
+    **COMPLIANCE_PROFILES,
 }
 
 # ============================================================
@@ -318,6 +425,7 @@ def anonymize_patient_files(
 ) -> dict:
     """Anonymize all DICOM files for a patient and save as DICOM."""
     from app.services import dicom_service
+    from app.services.dicom_converter_service import _get_session_dir, _load_pixel_data
 
     session = dicom_service.sessions.get(session_id)
     if not session:
@@ -330,7 +438,7 @@ def anonymize_patient_files(
     if not seed:
         seed = str(uuid.uuid4())
 
-    output_dir = os.path.join(str(dicom_service._get_session_dir(session_id)), "anonymized", patient_id)
+    output_dir = os.path.join(str(_get_session_dir(session_id)), "anonymized", patient_id)
     os.makedirs(output_dir, exist_ok=True)
 
     log_service.info(f"Anonymizing {patient.get('name', patient_id)} with profile '{profile_name}'", "anonymization")
@@ -344,7 +452,7 @@ def anonymize_patient_files(
         for series_uid, series in study.get("series", {}).items():
             for fid in series.get("files", []):
                 file_info = session.get("files", {}).get(fid)
-                raw = dicom_service._load_pixel_data(session, fid)
+                raw = _load_pixel_data(session, fid)
                 if not file_info or not raw:
                     continue
 
@@ -421,3 +529,237 @@ def anonymize_patient_files(
         "output_dir": output_dir,
         "audit_log": audit_path,
     }
+
+
+# ============================================================
+# Compliance validation
+# ============================================================
+
+def validate_compliance(dataset: pydicom.Dataset, profile: str) -> dict:
+    """Validate a dataset against a compliance profile.
+
+    Returns {compliant: bool, violations: [...], checked_tags: int, passed: int, failed: int}.
+    """
+    if profile not in PROFILES:
+        raise ValueError(f"Unknown profile: {profile}")
+
+    prof = PROFILES[profile]
+    tags_to_check = prof.get("tags", [])
+    violations = []
+    checked = 0
+    passed = 0
+
+    for tag_name in tags_to_check:
+        if hasattr(dataset, tag_name):
+            checked += 1
+            value = getattr(dataset, tag_name, None)
+            if value is not None and str(value).strip():
+                violations.append({
+                    "tag": tag_name,
+                    "value": str(value)[:200],
+                    "message": f"Tag {tag_name} still contains data after anonymization",
+                })
+            else:
+                passed += 1
+
+    return {
+        "compliant": len(violations) == 0,
+        "violations": violations,
+        "checked_tags": checked,
+        "passed": passed,
+        "failed": len(violations),
+        "profile": profile,
+        "standard": prof.get("standard", ""),
+    }
+
+
+def detect_burned_in_annotations(dataset: pydicom.Dataset) -> dict:
+    """Detect burned-in annotations in a DICOM dataset.
+
+    Checks BurnedInAnnotation (0028,0301) tag and heuristic pixel analysis.
+    Returns {has_burned_in: bool, method: str, details: str}.
+    """
+    # Check explicit BurnedInAnnotation tag
+    burned_in_tag = (0x0028, 0x0301)
+    if burned_in_tag in dataset:
+        value = dataset[burned_in_tag].value
+        has_burned = str(value).upper() in ("YES", "1", "TRUE")
+        return {
+            "has_burned_in": has_burned,
+            "method": "tag",
+            "details": f"BurnedInAnnotation tag present with value: {value}",
+        }
+
+    # Heuristic: check if PatientName appears in OverlayData or other text-bearing tags
+    has_text_overlay = False
+    for tag_keyword in ["OverlayData", "GraphicLayerData"]:
+        if hasattr(dataset, tag_keyword):
+            data = getattr(dataset, tag_keyword, None)
+            if data and len(str(data)) > 100:
+                has_text_overlay = True
+                break
+
+    return {
+        "has_burned_in": has_text_overlay,
+        "method": "heuristic",
+        "details": "No BurnedInAnnotation tag; checked overlay data heuristically",
+    }
+
+
+# ============================================================
+# AI-enhanced detection
+# ============================================================
+
+async def detect_burned_in_annotations_ai(
+    pixel_data: "np.ndarray",
+    model_id: str = "gpt-4o-mini",
+) -> dict:
+    """Use vision AI to detect burned-in text annotations in an image.
+
+    Takes a numpy pixel array, encodes as base64 PNG, and sends to vision API.
+    Returns {detected: bool, regions: list, confidence: float, raw_response: str}.
+    """
+    from app.services.ai_service import ai_service, _get_config
+    import base64 as _b64
+    import io as _io
+    from PIL import Image as _Image
+    import numpy as _np
+
+    cfg = _get_config()
+    if not cfg["api_base"] or not cfg["api_key"]:
+        return {"detected": False, "regions": [], "confidence": 0.0, "raw_response": "AI API not configured"}
+
+    # Encode middle slice as base64 PNG
+    if pixel_data.ndim == 3:
+        slice_2d = pixel_data[pixel_data.shape[0] // 2]
+    else:
+        slice_2d = pixel_data
+
+    slice_2d = slice_2d.astype(_np.float32)
+    mn, mx = slice_2d.min(), slice_2d.max()
+    if mx > mn:
+        slice_2d = (slice_2d - mn) / (mx - mn) * 255.0
+    else:
+        slice_2d = _np.zeros_like(slice_2d, dtype=_np.float32)
+
+    img = _Image.fromarray(slice_2d.astype(_np.uint8), mode="L")
+    buf = _io.BytesIO()
+    img.save(buf, format="PNG", optimize=True)
+    b64_image = _b64.b64encode(buf.getvalue()).decode("ascii")
+
+    import httpx
+    try:
+        async with httpx.AsyncClient(timeout=30) as client:
+            resp = await client.post(
+                f"{cfg['api_base']}/chat/completions",
+                headers={
+                    "Authorization": f"Bearer {cfg['api_key']}",
+                    "Content-Type": "application/json",
+                },
+                json={
+                    "model": model_id,
+                    "messages": [
+                        {
+                            "role": "user",
+                            "content": [
+                                {
+                                    "type": "text",
+                                    "text": (
+                                        "Analyze this medical image for burned-in annotations "
+                                        "(text, names, dates, IDs visible on the image). "
+                                        "Return JSON: {\"detected\": bool, \"regions\": "
+                                        "[{\"type\": str, \"description\": str, \"confidence\": float}], "
+                                        "\"overall_confidence\": float}"
+                                    ),
+                                },
+                                {
+                                    "type": "image_url",
+                                    "image_url": {"url": f"data:image/png;base64,{b64_image}", "detail": "low"},
+                                },
+                            ],
+                        }
+                    ],
+                    "max_tokens": 512,
+                },
+            )
+            resp.raise_for_status()
+        content = resp.json()["choices"][0]["message"]["content"]
+        import json as _json
+        if "```" in content:
+            json_str = content.split("```")[1]
+            if json_str.startswith("json"):
+                json_str = json_str[4:]
+            result = _json.loads(json_str.strip())
+        else:
+            result = _json.loads(content)
+        return {
+            "detected": result.get("detected", False),
+            "regions": result.get("regions", []),
+            "confidence": result.get("overall_confidence", 0.0),
+            "raw_response": content,
+        }
+    except Exception as e:
+        return {"detected": False, "regions": [], "confidence": 0.0, "raw_response": str(e)}
+
+
+async def validate_compliance_ai(
+    tag_values: dict[str, str],
+    profile: str,
+) -> dict:
+    """Use AI to review DICOM tag values for compliance risks.
+
+    Checks if tag values still contain real patient names, dates, or identifiers
+    even after anonymization.
+    Returns {compliant: bool, risks: list, summary: str}.
+    """
+    from app.services.ai_service import _get_config
+    import httpx
+    import json as _json
+
+    cfg = _get_config()
+    if not cfg["api_base"] or not cfg["api_key"]:
+        return {"compliant": True, "risks": [], "summary": "AI API not configured — manual review recommended"}
+
+    # Build a summary of non-empty tags for review
+    non_empty = {k: v for k, v in tag_values.items() if v and str(v).strip()}
+    if not non_empty:
+        return {"compliant": True, "risks": [], "summary": "All checked tags are empty"}
+
+    tag_summary = "\n".join(f"- {k}: {str(v)[:80]}" for k, v in non_empty.items())
+
+    prompt = (
+        f"Review these DICOM tag values after {profile} anonymization. "
+        "Check if any values still contain real patient information "
+        "(names, dates of birth, IDs, institution names, physician names). "
+        "Return JSON: {\"compliant\": bool, \"risks\": "
+        "[{\"tag\": str, \"value\": str, \"risk\": str, \"severity\": \"high\"|\"medium\"|\"low\"}], "
+        "\"summary\": str}\n\n"
+        f"Tag values:\n{tag_summary}"
+    )
+
+    try:
+        async with httpx.AsyncClient(timeout=30) as client:
+            resp = await client.post(
+                f"{cfg['api_base']}/chat/completions",
+                headers={
+                    "Authorization": f"Bearer {cfg['api_key']}",
+                    "Content-Type": "application/json",
+                },
+                json={
+                    "model": "gpt-4o-mini",
+                    "messages": [{"role": "user", "content": prompt}],
+                    "max_tokens": 1024,
+                },
+            )
+            resp.raise_for_status()
+        content = resp.json()["choices"][0]["message"]["content"]
+        if "```" in content:
+            json_str = content.split("```")[1]
+            if json_str.startswith("json"):
+                json_str = json_str[4:]
+            result = _json.loads(json_str.strip())
+        else:
+            result = _json.loads(content)
+        return result
+    except Exception as e:
+        return {"compliant": True, "risks": [], "summary": f"AI check failed: {e}"}

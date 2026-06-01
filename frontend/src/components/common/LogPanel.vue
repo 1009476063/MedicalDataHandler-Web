@@ -72,8 +72,9 @@ async function fetchLogs() {
     if (lastTimestamp > 0) params.set('since', String(lastTimestamp))
     params.set('limit', '100')
     const res = await fetch(`/api/logging/logs?${params}`)
+    if (!res.ok) return
     const data = await res.json()
-    if (data.logs.length > 0) {
+    if (data?.logs?.length > 0) {
       logs.value = [...logs.value.slice(-200), ...data.logs]
       lastTimestamp = data.logs[data.logs.length - 1].timestamp
       if (!expanded.value) {

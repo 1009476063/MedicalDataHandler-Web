@@ -159,6 +159,7 @@ const { t } = useI18n()
 const dataNavItems = computed(() => [
   { path: '/', label: t('sidebar.nav.dashboard'), icon: HomeIcon },
   { path: '/patients', label: t('sidebar.nav.patients'), icon: UserGroupIcon },
+  { path: '/worklist', label: t('sidebar.nav.worklist'), icon: ClipboardDocumentListIcon },
   { path: '/viewer', label: t('sidebar.nav.viewer'), icon: CubeTransparentIcon },
   { path: '/plans', label: t('sidebar.nav.plans'), icon: BeakerIcon },
   { path: '/pacs', label: t('sidebar.nav.pacs'), icon: GlobeAltIcon },
@@ -167,6 +168,7 @@ const dataNavItems = computed(() => [
 const toolNavItems = computed(() => [
   { path: '/converter', label: t('sidebar.nav.converter'), icon: ArrowsRightLeftIcon },
   { path: '/analysis', label: t('sidebar.nav.analysis'), icon: MagnifyingGlassIcon },
+  { path: '/sr', label: t('sidebar.nav.sr'), icon: DocumentTextIcon },
   { path: '/processing', label: t('sidebar.nav.postProcessing'), icon: WrenchScrewdriverIcon },
   { path: '/export', label: t('sidebar.nav.export'), icon: ArrowUpTrayIcon },
   { path: '/anonymization', label: t('sidebar.nav.anonymization'), icon: ShieldCheckIcon },

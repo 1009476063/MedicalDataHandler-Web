@@ -443,8 +443,10 @@ async function autoRenameStructs() {
   addLog('Starting auto-rename with TG-263 conventions...')
 
   try {
-    const res = await fetch(`/api/postprocessing/auto-rename-structs?session_id=${appStore.sessionId}&patient_id=${renamePatientId.value}`, {
+    const res = await fetch('/api/postprocessing/auto-rename-structs', {
       method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ session_id: appStore.sessionId, patient_id: renamePatientId.value }),
     })
 
     if (res.ok) {

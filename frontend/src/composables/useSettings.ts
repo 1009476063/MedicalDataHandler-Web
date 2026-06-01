@@ -1,4 +1,4 @@
-import { ref, watch } from 'vue'
+import { ref, watch, type Ref } from 'vue'
 
 const PREFIX = 'mdh_'
 
@@ -15,42 +15,79 @@ function save(key: string, value: unknown) {
   localStorage.setItem(`${PREFIX}${key}`, JSON.stringify(value))
 }
 
-const defaultWindow = ref(load('defaultWindow', 'auto'))
-const defaultOrientation = ref(load('defaultOrientation', 'axial'))
-const scrollSensitivity = ref(load('scrollSensitivity', 1))
-const structOpacity = ref(load('structOpacity', 0.4))
-const doseOpacity = ref(load('doseOpacity', 0.35))
-const orientationLabelColor = ref(load('orientationLabelColor', '#00ff00'))
-const panSpeed = ref(load('panSpeed', 1))
-const wlSensitivity = ref(load('wlSensitivity', 2))
-const showOrientationLabels = ref(load('showOrientationLabels', true))
-const showOverlayInfo = ref(load('showOverlayInfo', true))
-const sidebarCollapsed = ref(load('sidebarCollapsed', false))
-const uploadConcurrency = ref(load('uploadConcurrency', 3))
-const defaultExportFormat = ref(load('defaultExportFormat', 'ct'))
-const defaultAnonProfile = ref(load('defaultAnonProfile', 'research'))
-
-const allRefs = {
-  defaultWindow,
-  defaultOrientation,
-  scrollSensitivity,
-  structOpacity,
-  doseOpacity,
-  orientationLabelColor,
-  panSpeed,
-  wlSensitivity,
-  showOrientationLabels,
-  showOverlayInfo,
-  sidebarCollapsed,
-  uploadConcurrency,
-  defaultExportFormat,
-  defaultAnonProfile,
+const defaults: Record<string, unknown> = {
+  defaultWindow: 'auto',
+  defaultOrientation: 'axial',
+  scrollSensitivity: 1,
+  structOpacity: 0.4,
+  doseOpacity: 0.35,
+  orientationLabelColor: '#00ff00',
+  panSpeed: 1,
+  wlSensitivity: 2,
+  showOrientationLabels: true,
+  showOverlayInfo: true,
+  sidebarCollapsed: false,
+  uploadConcurrency: 3,
+  exportDtype: 'float32',
+  exportUnit: 'native',
+  defaultAnonProfile: 'research',
+  contourThickness: 1,
+  defaultTool: 'Length',
+  playbackFps: 4,
+  segmentOpacity: 0.4,
+  recentPatientsCount: 5,
+  analysisConfidenceThreshold: 0.5,
+  dceMinFileCount: 10,
+  defaultModality: 'auto',
+  fourDPlaybackMode: 'loop',
+  defaultSegmentPalette: 'vivid',
+  defaultFusionOpacity: 0.5,
+  defaultBlendMode: 'additive',
 }
 
-Object.entries(allRefs).forEach(([key, r]) => {
-  watch(r, (v) => save(key, v))
-})
+let _refs: Record<string, Ref> | null = null
+
+function initRefs(): Record<string, Ref> {
+  const keys = Object.keys(defaults)
+  const refs: Record<string, Ref> = {}
+  for (const key of keys) {
+    refs[key] = ref(load(key, defaults[key]))
+    watch(refs[key], (v) => save(key, v))
+  }
+  return refs
+}
 
 export function useSettings() {
-  return allRefs
+  if (!_refs) {
+    _refs = initRefs()
+  }
+  return _refs as {
+    defaultWindow: Ref<string>
+    defaultOrientation: Ref<string>
+    scrollSensitivity: Ref<number>
+    structOpacity: Ref<number>
+    doseOpacity: Ref<number>
+    orientationLabelColor: Ref<string>
+    panSpeed: Ref<number>
+    wlSensitivity: Ref<number>
+    showOrientationLabels: Ref<boolean>
+    showOverlayInfo: Ref<boolean>
+    sidebarCollapsed: Ref<boolean>
+    uploadConcurrency: Ref<number>
+    exportDtype: Ref<string>
+    exportUnit: Ref<string>
+    defaultAnonProfile: Ref<string>
+    contourThickness: Ref<number>
+    defaultTool: Ref<string>
+    playbackFps: Ref<number>
+    segmentOpacity: Ref<number>
+    recentPatientsCount: Ref<number>
+    analysisConfidenceThreshold: Ref<number>
+    dceMinFileCount: Ref<number>
+    defaultModality: Ref<string>
+    fourDPlaybackMode: Ref<string>
+    defaultSegmentPalette: Ref<string>
+    defaultFusionOpacity: Ref<number>
+    defaultBlendMode: Ref<string>
+  }
 }

@@ -42,6 +42,11 @@
           </div>
         </div>
 
+        <!-- Error Message -->
+        <div v-if="error" class="p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg text-sm text-red-700 dark:text-red-300">
+          {{ error }}
+        </div>
+
         <!-- Analysis Results -->
         <div v-if="analysisResult" class="space-y-4">
           <!-- Sequence Cards -->
@@ -94,6 +99,7 @@ const patients = computed(() => appStore.patients)
 const selectedPatientId = ref('')
 const analyzing = ref(false)
 const analysisResult = ref<any>(null)
+const error = ref('')
 
 function onPatientChange() {
   analysisResult.value = null
@@ -114,9 +120,11 @@ async function analyzeSequences() {
     const data = await res.json()
     if (data.success) {
       analysisResult.value = data.data
+    } else {
+      error.value = data.detail || 'Analysis failed'
     }
-  } catch {
-    // silently ignore
+  } catch (e: unknown) {
+    error.value = e instanceof Error ? e.message : 'Network error during analysis'
   } finally {
     analyzing.value = false
   }

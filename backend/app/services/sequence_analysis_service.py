@@ -365,13 +365,13 @@ def _select_best_dwi(dwi_candidates: list[dict], adc_ref: Optional[dict]) -> Opt
     return max(dwi_pool, key=lambda x: x["file_count"]) if dwi_pool else None
 
 
-def _select_best_dce(dce_candidates: list[dict]) -> list[dict]:
+def _select_best_dce(dce_candidates: list[dict], dce_min_file_count: int = 10) -> list[dict]:
     """Select DCE candidates, excluding post-processing series."""
     exclude_keywords = ["_WI", "_WO", "_SUB", "_TTP", "_MIP", "_PEI", "SUB", "MIP"]
     dce_raw = [
         d for d in dce_candidates
         if not any(kw.upper() in d["description"].upper() for kw in exclude_keywords)
-        and d["file_count"] >= 10
+        and d["file_count"] >= dce_min_file_count
     ]
     return dce_raw
 
@@ -403,7 +403,12 @@ def _select_best_mg(mg_candidates: list[dict]) -> list[dict]:
     return [best_by_view[k] for k in wanted if k in best_by_view]
 
 
-def analyze_patient_sequences(session: dict, patient_id: str) -> dict:
+def analyze_patient_sequences(
+    session: dict,
+    patient_id: str,
+    confidence_threshold: float = 0.5,
+    dce_min_file_count: int = 10,
+) -> dict:
     """Main orchestrator: analyze all series and select best for each type.
 
     Returns:
@@ -457,7 +462,7 @@ def analyze_patient_sequences(session: dict, patient_id: str) -> dict:
 
         series_entry = {**entry_base, "type": seq_type, "confidence": confidence, "reason": reason}
 
-        if confidence < 0.5:
+        if confidence < confidence_threshold:
             all_series.append(series_entry)
             continue
 
@@ -503,7 +508,7 @@ def analyze_patient_sequences(session: dict, patient_id: str) -> dict:
             reasons["DWI"] = f"{best_dwi['file_count']} files ({bv} b-values x {sl} slices)"
 
     # DCE
-    dce_raw = _select_best_dce(dce_candidates)
+    dce_raw = _select_best_dce(dce_candidates, dce_min_file_count)
     selected["DCE"] = dce_raw
     reasons["DCE"] = f"{len(dce_raw)} DCE candidates" if dce_raw else "No DCE candidates"
 

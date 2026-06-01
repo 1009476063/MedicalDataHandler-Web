@@ -8,11 +8,12 @@
         </p>
       </div>
       <button
-        class="px-4 py-2 bg-primary-500 hover:bg-primary-600 text-white rounded-lg text-sm font-medium transition-colors flex items-center gap-2"
-        @click="$router.push('/')"
+        class="px-4 py-2 bg-primary-500 hover:bg-primary-600 text-white rounded-lg text-sm font-medium transition-colors flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+        :disabled="refreshing"
+        @click="handleRefresh"
       >
-        <ArrowUpTrayIcon class="w-4 h-4" />
-        {{ $t('patients.upload') }}
+        <ArrowPathIcon :class="['w-4 h-4', refreshing ? 'animate-spin' : '']" />
+        {{ $t('patients.refresh') }}
       </button>
     </div>
 
@@ -114,7 +115,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, reactive } from 'vue'
+import { computed, reactive, ref } from 'vue'
 import { useAppStore } from '@/stores/app'
 import StatusBadge from '@/components/common/StatusBadge.vue'
 import {
@@ -123,14 +124,24 @@ import {
   DocumentTextIcon,
   CubeIcon,
   ChevronDownIcon,
-  ArrowUpTrayIcon,
+  ArrowPathIcon,
   MagnifyingGlassIcon,
 } from '@heroicons/vue/24/outline'
-import { ref } from 'vue'
 
 const appStore = useAppStore()
 const searchQuery = ref('')
+const refreshing = ref(false)
 const expandedPatients = reactive(new Set<string>())
+
+async function handleRefresh() {
+  if (refreshing.value) return
+  refreshing.value = true
+  try {
+    await appStore.refreshPatients()
+  } finally {
+    refreshing.value = false
+  }
+}
 
 const patients = computed(() => appStore.patients || [])
 

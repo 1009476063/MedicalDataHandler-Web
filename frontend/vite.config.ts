@@ -9,12 +9,18 @@ export default defineConfig({
       '@': resolve(__dirname, 'src'),
     },
   },
+  optimizeDeps: {
+    include: ['vue', 'vue-router', 'pinia', 'vue-i18n', 'axios'],
+  },
   build: {
     rollupOptions: {
       output: {
         manualChunks: {
           'cornerstone-core': ['@cornerstonejs/core'],
           'cornerstone-tools': ['@cornerstonejs/tools'],
+          'cornerstone-streaming': ['@cornerstonejs/streaming-image-volume-loader'],
+          'vue-vendor': ['vue', 'vue-router', 'pinia', 'vue-i18n'],
+          'dicom-parser': ['dicom-parser'],
         },
       },
     },

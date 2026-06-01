@@ -4,16 +4,54 @@
 
 # MedVista
 
-基于 Web 的放射治疗医学影像查看与处理平台。支持 DICOM、NIfTI、NRRD、MHA 格式，具备 WebGL 3D 渲染、结构/剂量叠加、RT 计划分析和 PACS 连接功能。
+基于 Web 的放射治疗医学影像查看与处理平台。支持 DICOM、NIfTI、NRRD、MHA 格式，具备 WebGL 3D 渲染、结构/剂量叠加、RT 计划分析、PACS 连接和 AI 分析功能。
 
 **在线体验：** https://medical.1661688.xyz
 
+![Version](https://img.shields.io/badge/version-2.0.0-059669)
 ![Vue 3](https://img.shields.io/badge/Vue-3-42b883?logo=vue.js)
 ![FastAPI](https://img.shields.io/badge/FastAPI-0.115-009688?logo=fastapi)
 ![Python](https://img.shields.io/badge/Python-3.10+-3776ab?logo=python)
 ![TypeScript](https://img.shields.io/badge/TypeScript-5-3178c6?logo=typescript)
 ![Tailwind CSS](https://img.shields.io/badge/Tailwind-3.4-06b6d4?logo=tailwindcss)
 ![Cornerstone3D](https://img.shields.io/badge/Cornerstone3D-4.22-ff6b35)
+
+## 为什么选择 MedVista？
+
+MedVista 不只是又一个 DICOM 查看器 — 它是一个**完整的放射治疗影像平台**，将临床级可视化与 AI 智能分析结合在一个 Web 应用中。
+
+### 独特优势
+
+**1. 覆盖完整 RT 工作流**
+不同于通用 DICOM 查看器，MedVista 覆盖放射治疗全流程：CT/MRI/PET 查看、RT 结构轮廓可视化、剂量分布分析、RT 计划检查、TG-263 标准结构命名 — 所有功能集成于一个工具。
+
+**2. AI 深度集成**
+MedVista 将 AI 直接嵌入临床工作流：
+- **多切片分析** — 发送 5 张均匀分布切片或 MIP 投影给视觉模型，获取更丰富的上下文
+- **智能结构重命名** — LLM 驱动的模糊匹配，将非标准 DICOM 结构名映射到 TG-263 标准
+- **智能窗宽窗位** — AI 根据模态和解剖部位推荐最佳窗宽窗位
+- **烧入标注检测** — 视觉 AI 识别像素数据中烧入的患者可识别文字
+- **一键生成 SR 报告** — AI 分析结果直接转换为 DICOM 结构化报告
+
+**3. PET-CT 融合与 SUV 计算**
+一流的 PET-CT 融合功能：自动配对、可调混合比例、实时 SUV（标准摄取值）计算 — 这些功能通常只在专用肿瘤工作站中找到。
+
+**4. 客户端-服务端混合架构**
+MedVista 既可独立运行也可连接后端。纯客户端模式下，DICOM 解析、渲染和测量全部在浏览器中通过 WebWorker 和 OffscreenCanvas 完成。支持离线临床阅片、气隙环境和零安装部署。
+
+**5. 生产级内存管理**
+为真实临床数据集设计（10,000+ 文件，多 GB 检查）：
+- 基于磁盘的像素存储（numpy .npy 格式）
+- 有界内存的 LRU 缓存
+- 4MB 分块流式体积传输
+- 后台切片预加载
+- 大标签集虚拟滚动
+
+**6. 原生 DICOM 协议支持**
+完整的 DICOMweb 实现（QIDO-RS、WADO-RS、STOW-RS）加上 Modality Worklist、Structured Reports 和 DICOM Print — 不是私有连接器，而是基于标准的 PACS 集成。
+
+**7. 开源自托管**
+MIT 许可，无供应商锁定。可本地部署以满足 HIPAA/GDPR 合规要求。AI 功能支持配置任何 OpenAI 兼容 API — 无需强制云订阅。
 
 ## 功能特性
 

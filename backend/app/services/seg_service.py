@@ -28,14 +28,8 @@ def _get_session(session_id: str) -> Optional[dict]:
 
 
 def _load_seg_bytes(session_id: str, file_id: str) -> Optional[bytes]:
-    """Load raw SEG bytes from session raw_data."""
-    session = _get_session(session_id)
-    if not session:
-        return None
-    raw = session.get("raw_data", {}).get(file_id)
-    if not raw or "raw_bytes" not in raw:
-        return None
-    return raw["raw_bytes"]
+    """Load raw SEG bytes from disk or in-memory fallback."""
+    return dicom_service.load_raw_dicom(session_id, file_id)
 
 
 def _parse_seg(ds: pydicom.Dataset) -> dict:

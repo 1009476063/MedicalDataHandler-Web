@@ -14,7 +14,7 @@ from app.utils.rate_limit import limiter
 
 from app.routers import dicom, export, config, postprocessing
 from app.routers import logging as logging_router
-from app.routers import medical_formats, converter, analysis, annotations, dicomweb, anonymization, seg, four_d, auth, system
+from app.routers import medical_formats, converter, analysis, annotations, dicomweb, anonymization, seg, four_d, auth, system, ai, mwl, sr, print as print_router
 from app.services.dicom_service import dicom_service
 
 logger = logging.getLogger(__name__)
@@ -66,6 +66,10 @@ app.include_router(seg.router, prefix="/api/seg", tags=["Segmentation"])
 app.include_router(four_d.router, prefix="/api/4d", tags=["4D"])
 app.include_router(auth.router)
 app.include_router(system.router, prefix="/api/system", tags=["System"])
+app.include_router(ai.router, prefix="/api/ai", tags=["AI"])
+app.include_router(mwl.router, prefix="/api/mwl", tags=["MWL"])
+app.include_router(sr.router, prefix="/api/sr", tags=["Structured Reporting"])
+app.include_router(print_router.router, prefix="/api/print", tags=["DICOM Print"])
 
 UPLOAD_DIR = Path("uploads")
 UPLOAD_DIR.mkdir(exist_ok=True)

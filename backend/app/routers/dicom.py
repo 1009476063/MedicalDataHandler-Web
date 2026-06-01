@@ -179,6 +179,26 @@ async def get_rt_plans(session_id: str, patient_id: str):
     return ApiResponse(success=True, data={"plans": plans or []})
 
 
+@router.get("/suv-info/{session_id}/{patient_id}/{series_uid}")
+async def get_suv_info(session_id: str, patient_id: str, series_uid: str):
+    """Extract SUV parameters from PET series DICOM headers."""
+    info = await asyncio.to_thread(
+        dicom_service.get_suv_info, session_id, patient_id, series_uid,
+    )
+    if info is None:
+        raise HTTPException(status_code=404, detail="Series not found or not a PET series")
+    return ApiResponse(success=True, data=info)
+
+
+@router.get("/find-pt-series/{session_id}/{patient_id}")
+async def find_pt_series(session_id: str, patient_id: str):
+    """Find CT+PT series pairs within the same study for PET-CT fusion."""
+    pairs = await asyncio.to_thread(
+        dicom_service.find_pt_series, session_id, patient_id,
+    )
+    return ApiResponse(success=True, data={"pairs": pairs})
+
+
 @router.delete("/session/{session_id}")
 async def delete_session(session_id: str):
     cleaned = dicom_service.cleanup_session(session_id)

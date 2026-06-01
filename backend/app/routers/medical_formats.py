@@ -55,7 +55,7 @@ async def upload_medical_files(files: list[UploadFile] = File(...)):
 async def _process_uploads(file_bytes_list: list[tuple[str, bytes]]) -> dict:
     """Parse medical files and create a session compatible with the DICOM viewer."""
     dicom_service._cleanup_expired()
-    session_id = str(uuid.uuid4())[:8]
+    session_id = uuid.uuid4().hex
 
     # Initialize session in the shared dicom_service so all viewers can access it
     dicom_service.sessions[session_id] = {

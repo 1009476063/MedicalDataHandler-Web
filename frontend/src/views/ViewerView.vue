@@ -112,6 +112,23 @@
         :dicom-tag-search="dicomTagSearch"
         :dicom-tags="dicomTags"
         :filtered-dicom-tags="filteredDicomTags"
+        :fusion-enabled="fusion.fusionEnabled.value"
+        :fusion-available="fusionAvailable"
+        :fusion-ct-uid="fusion.ctSeriesUid.value || ''"
+        :fusion-pt-uid="fusion.ptSeriesUid.value || ''"
+        :fusion-opacity="fusion.fusionOpacity.value"
+        :fusion-blend-mode="fusion.blendMode.value"
+        :fusion-show-suv="fusion.showSuv.value"
+        :fusion-suv-info="fusion.suvInfo.value"
+        :pet-ct-pairs="fusion.petCtPairs.value"
+        :ai-models="ai.models.value"
+        :ai-loading="ai.loading.value"
+        :ai-progress="ai.progress.value"
+        :ai-progress-message="ai.progressMessage.value"
+        :ai-result="ai.analysisResult.value"
+        :ai-study-summary="ai.studySummary.value"
+        :ai-summary-loading="ai.summaryLoading.value"
+        :confidence-threshold="settings.analysisConfidenceThreshold.value"
         @patient-change="onPatientChange"
         @series-select="onSeriesSelect"
         @apply-preset="applyPreset"
@@ -128,6 +145,17 @@
         @update:contour-thickness="contourThickness = $event"
         @update:orientation-label-color="orientationLabelColor = $event"
         @update:dicom-tag-search="dicomTagSearch = $event"
+        @toggle-fusion="toggleFusion"
+        @set-fusion-ct-series="setFusionCtSeries"
+        @set-fusion-pt-series="setFusionPtSeries"
+        @update-fusion-opacity="updateFusionOpacity"
+        @update-blend-mode="updateBlendMode"
+        @toggle-suv="toggleSuv"
+        @fetch-ai-models="ai.fetchModels"
+        @run-ai-analysis="(modelId, prompt, strategy) => ai.runAnalysis(appStore.sessionId!, appStore.selectedPatientId!, appStore.selectedSeriesUid!, modelId, prompt, strategy)"
+        @reset-ai="ai.reset"
+        @create-sr="createSrFromAi"
+        @generate-ai-summary="generateAiSummary"
       />
     </div>
 
@@ -174,6 +202,13 @@
         </div>
       </Transition>
     </Teleport>
+
+    <!-- Print Dialog -->
+    <PrintDialog
+      :visible="showPrintDialog"
+      :image-data-url="screenshotDataUrl"
+      @close="showPrintDialog = false"
+    />
   </div>
 </template>
 
@@ -188,33 +223,52 @@ import ViewerSidebar from '@/components/viewer/ViewerSidebar.vue'
 import { useTools } from '@/composables/useTools'
 import { useSegmentation } from '@/composables/useSegmentation'
 import { useFourD } from '@/composables/useFourD'
+import { useFusion } from '@/composables/useFusion'
+import { useAI } from '@/composables/useAI'
+import { useSR } from '@/composables/useSR'
 import { useSettings } from '@/composables/useSettings'
 import { getSeriesImageIds } from '@/composables/useClientMode'
-import { registerClientLoaders } from '@/utils/clientDicomLoader'
 import type { SeriesInfo, StructInfo, DoseInfo } from '@/types'
 import { EyeIcon } from '@heroicons/vue/24/outline'
-import {
-  RenderingEngine,
-  Enums,
-  volumeLoader,
-  eventTarget,
-  type Types,
-} from '@cornerstonejs/core'
-import { registerMdhVolumeLoader, buildVolumeId } from '@/utils/cornerstoneVolumeLoader'
-import { annotation } from '@cornerstonejs/tools'
+import type { Types } from '@cornerstonejs/core'
 import { detectWebGL, type WebGLCapability } from '@/utils/webglDetector'
 import ImageSliceViewer from '@/components/viewer/ImageSliceViewer.vue'
+import PrintDialog from '@/components/viewer/PrintDialog.vue'
 import { useCanvasTools } from '@/composables/useCanvasTools'
+
+// Lazy-loaded Cornerstone3D modules — loaded in onMounted to reduce initial bundle
+let RenderingEngine: any
+let Enums: any
+let volumeLoader: any
+let eventTarget: any
+let buildVolumeId: any
+let registerMdhVolumeLoader: any
+let registerClientLoaders: any
 
 const { t } = useI18n()
 const appStore = useAppStore()
 const tools = useTools()
 const seg = useSegmentation()
 const fourD = useFourD()
+const fusion = useFusion()
+const showPrintDialog = ref(false)
+const screenshotDataUrl = ref('')
+const ai = useAI()
+const sr = useSR()
 const settings = useSettings()
 
-const windowCenter = ref(40)
-const windowWidth = ref(400)
+const windowPresetsMap: Record<string, { center: number; width: number }> = {
+  auto: { center: 40, width: 400 },
+  ct: { center: 40, width: 400 },
+  mri: { center: 500, width: 1200 },
+  bone: { center: 400, width: 1800 },
+  lung: { center: -600, width: 1500 },
+  soft_tissue: { center: 50, width: 350 },
+  pet: { center: 2.5, width: 15 },
+}
+const initialWl = windowPresetsMap[settings.defaultWindow.value] || windowPresetsMap.ct
+const windowCenter = ref(initialWl.center)
+const windowWidth = ref(initialWl.width)
 const loading = ref(false)
 const seriesInfo = ref<SeriesInfo | null>(null)
 const structs = ref<StructInfo[]>([])
@@ -238,7 +292,7 @@ const canvasOverlays = ref<Record<string, Array<{ mask: number[][] | null; color
 const gpuInfo = ref<{ gpu_available: boolean; gpu_name?: string } | null>(null)
 
 // Cornerstone3D engine state
-let csEngine: Types.IRenderingEngine | null = null
+let csEngine: any = null
 const engineReady = ref(false)
 const viewportElements = ref<Record<string, HTMLDivElement>>({})
 let volumeLoaded = false
@@ -249,7 +303,7 @@ const enabledStructOverlays = ref<Set<string>>(new Set())
 const enabledDoseOverlays = ref<Set<string>>(new Set())
 const overlayOpacity = settings.structOpacity
 const doseOpacity = settings.doseOpacity
-const contourThickness = ref(0)
+const contourThickness = settings.contourThickness
 const structOverlayCache = ref<Record<string, number[][] | null>>({})
 const doseOverlayCache = ref<Record<string, { data: number[][]; min: number; max: number } | null>>({})
 const structColorMap = ref<Record<string, string>>({})
@@ -271,6 +325,8 @@ const confirmButtonText = ref(t('viewer.confirm'))
 let confirmCallback: (() => void) | null = null
 
 const patients = computed(() => appStore.patients || [])
+
+const fusionAvailable = computed(() => fusion.petCtPairs.value.length > 0)
 
 const structColors = [
   '#ff0000', '#00ff00', '#0000ff', '#ffff00', '#ff00ff', '#00ffff',
@@ -378,9 +434,32 @@ onMounted(async () => {
   // Detect WebGL capability
   webglCap.value = detectWebGL()
 
+  // Start API calls immediately — don't block on Cornerstone3D download
+  const presetsPromise = fetch('/api/config/window-presets')
+    .then(r => r.ok ? r.json() : null)
+    .catch(() => null)
+  const gpuPromise = fetch('/api/system/gpu-info')
+    .then(r => r.ok ? r.json() : null)
+    .catch(() => null)
+
   if (!webglCap.value.webgl2 && !webglCap.value.webgl1) {
     useCanvasFallback.value = true
   } else {
+    // Load Cornerstone3D modules dynamically (this is the heavy ~3MB download)
+    const [csCore, csTools, csVolumeLoader, csClientLoader] = await Promise.all([
+      import('@cornerstonejs/core'),
+      import('@cornerstonejs/tools'),
+      import('@/utils/cornerstoneVolumeLoader'),
+      import('@/utils/clientDicomLoader'),
+    ])
+    RenderingEngine = csCore.RenderingEngine
+    Enums = csCore.Enums
+    volumeLoader = csCore.volumeLoader
+    eventTarget = csCore.eventTarget
+    registerMdhVolumeLoader = csVolumeLoader.registerMdhVolumeLoader
+    buildVolumeId = csVolumeLoader.buildVolumeId
+    registerClientLoaders = csClientLoader.registerClientLoaders
+
     // Initialize Cornerstone3D
     if (volumeLoader) {
       registerMdhVolumeLoader()
@@ -396,32 +475,23 @@ onMounted(async () => {
     eventTarget.addEventListener('CORNERSTONE_TOOLS_ANNOTATION_REMOVED', refreshOnAnnotationFn)
   }
 
-  // Load window presets from config
-  try {
-    const res = await fetch('/api/config/window-presets')
-    if (res.ok) {
-      const config = await res.json()
-      if (config.rules && typeof config.rules === 'object') {
-        windowPresets.value = Object.entries(config.rules).map(([name, vals]: [string, unknown]) => {
-          const [width, center] = vals as [number, number]
-          return { name, center, width }
-        })
-      }
-    }
-  } catch {
-    // Keep default presets on failure
+  // Apply API results (already in-flight from above)
+  const [presetsData, gpuData] = await Promise.all([presetsPromise, gpuPromise])
+
+  if (presetsData?.rules && typeof presetsData.rules === 'object') {
+    windowPresets.value = Object.entries(presetsData.rules).map(([name, vals]: [string, unknown]) => {
+      const [width, center] = vals as [number, number]
+      return { name, center, width }
+    })
   }
 
-  // Fetch GPU info from backend
-  try {
-    const resp = await fetch('/api/system/gpu-info')
-    if (resp.ok) gpuInfo.value = await resp.json()
-  } catch {
-    // ignore
+  if (gpuData) {
+    gpuInfo.value = gpuData
   }
 })
 
 onBeforeUnmount(() => {
+  removeContextLossHandlers()
   tools.destroy()
   if (refreshOnAnnotationFn) {
     eventTarget.removeEventListener('CORNERSTONE_TOOLS_ANNOTATION_ADDED', refreshOnAnnotationFn)
@@ -435,20 +505,37 @@ onBeforeUnmount(() => {
 })
 
 // WebGL context loss/restore handling
+let _glLostHandler: ((e: Event) => void) | null = null
+let _glRestoredHandler: (() => void) | null = null
+let _glCanvas: HTMLCanvasElement | null = null
+
 function setupContextLossHandlers() {
   const canvas = document.querySelector('#axial canvas') as HTMLCanvasElement | null
   if (!canvas) return
-  canvas.addEventListener('webglcontextlost', (e) => {
+  _glCanvas = canvas
+  _glLostHandler = (e) => {
     e.preventDefault()
     console.warn('WebGL context lost')
-  })
-  canvas.addEventListener('webglcontextrestored', () => {
+  }
+  _glRestoredHandler = () => {
     console.info('WebGL context restored, reinitializing engine...')
     csEngine = null
     engineReady.value = false
     viewportElements.value = {}
     volumeLoaded = false
-  })
+  }
+  canvas.addEventListener('webglcontextlost', _glLostHandler)
+  canvas.addEventListener('webglcontextrestored', _glRestoredHandler)
+}
+
+function removeContextLossHandlers() {
+  if (_glCanvas && _glLostHandler) {
+    _glCanvas.removeEventListener('webglcontextlost', _glLostHandler)
+    _glCanvas.removeEventListener('webglcontextrestored', _glRestoredHandler!)
+    _glCanvas = null
+    _glLostHandler = null
+    _glRestoredHandler = null
+  }
 }
 
 // Canvas2D fallback: fetch rendered slices from backend
@@ -562,7 +649,7 @@ async function onViewportReady(orientation: string, element: HTMLDivElement) {
     setupContextLossHandlers()
 
     // Create measurement tool group
-    const toolGroup = tools.createToolGroup('cs3d-engine')
+    const toolGroup = await tools.createToolGroup('cs3d-engine')
     if (toolGroup) {
       tools.addViewports('cs3d-engine', ['axial', 'sagittal', 'coronal'])
     }
@@ -594,11 +681,24 @@ async function loadVolumeIntoViewports() {
       }
     } else {
       if (!appStore.sessionId) return
-      const volumeId = buildVolumeId(appStore.sessionId, appStore.selectedPatientId, appStore.selectedSeriesUid)
-      for (const vpId of ['axial', 'sagittal', 'coronal'] as const) {
-        const vp = csEngine.getViewport(vpId)
-        if (vp) {
-          await (vp as Types.IBaseVolumeViewport).setVolumes([{ volumeId }])
+      const viewportIds = ['axial', 'sagittal', 'coronal'] as const
+
+      if (fusion.fusionEnabled.value && fusion.ctSeriesUid.value && fusion.ptSeriesUid.value) {
+        await fusion.enableFusion(
+          csEngine,
+          [...viewportIds],
+          appStore.sessionId,
+          appStore.selectedPatientId,
+          fusion.ctSeriesUid.value,
+          fusion.ptSeriesUid.value,
+        )
+      } else {
+        const volumeId = buildVolumeId(appStore.sessionId, appStore.selectedPatientId, appStore.selectedSeriesUid)
+        for (const vpId of viewportIds) {
+          const vp = csEngine.getViewport(vpId)
+          if (vp) {
+            await (vp as Types.IBaseVolumeViewport).setVolumes([{ volumeId }])
+          }
         }
       }
     }
@@ -641,6 +741,9 @@ async function loadSeriesData() {
     structOverlayCache.value = {}
     doseOverlayCache.value = {}
     structColorMap.value = {}
+
+    // Auto-detect PET-CT pairs
+    findPetCtPairs()
   } finally {
     loading.value = false
   }
@@ -691,18 +794,14 @@ const sagittalViewerRef = ref<InstanceType<typeof Cornerstone3DViewer> | null>(n
 const coronalViewerRef = ref<InstanceType<typeof Cornerstone3DViewer> | null>(null)
 
 function captureScreenshot() {
-  // Use Cornerstone3D rendering engine to capture the axial viewport
   if (!csEngine) return
   const vp = csEngine.getViewport('axial')
   if (!vp) return
-  // Cornerstone3D viewport canvas is accessible via the element
   const canvas = document.querySelector('#axial canvas') as HTMLCanvasElement | null
   if (!canvas) return
   const dataUrl = canvas.toDataURL('image/png')
-  const link = document.createElement('a')
-  link.href = dataUrl
-  link.download = `slice_${appStore.selectedSeriesUid || 'unknown'}.png`
-  link.click()
+  screenshotDataUrl.value = dataUrl
+  showPrintDialog.value = true
 }
 
 function exportMeasurementsCsv() {
@@ -738,6 +837,45 @@ function exportMeasurementsCsv() {
   URL.revokeObjectURL(url)
 }
 
+async function createSrFromAi() {
+  if (!appStore.sessionId || !appStore.selectedPatientId || !ai.analysisResult.value) return
+  const findings = (ai.analysisResult.value.findings as Array<{
+    region: string
+    description: string
+    confidence: number
+    severity: string
+  }>) || []
+  if (findings.length === 0) return
+
+  const patient = appStore.currentPatient
+  const patientName = patient?.name || ''
+  const studyDate = patient?.studies?.[0]?.date || ''
+
+  try {
+    await sr.createFromAi(
+      appStore.sessionId,
+      appStore.selectedPatientId,
+      patientName,
+      studyDate,
+      findings.map(f => ({ name: f.region, value: f.description, description: `${f.severity} (${Math.round(f.confidence * 100)}%)` })),
+    )
+  } catch {
+    // error handled by useSR
+  }
+}
+
+async function generateAiSummary() {
+  if (!ai.analysisResult.value) return
+  const findings = (ai.analysisResult.value.findings as Array<{
+    region: string
+    description: string
+    confidence: number
+    severity: string
+  }>) || []
+  if (findings.length === 0) return
+  await ai.generateSummary(findings)
+}
+
 function onPatientChange() {
   appStore.selectedSeriesUid = null
   seriesInfo.value = null
@@ -750,6 +888,10 @@ function onPatientChange() {
   seg.clearOverlays()
   seg.fetchSegFiles()
   fourD.reset()
+  fusion.petCtPairs.value = []
+  fusion.fusionEnabled.value = false
+  fusion.ctSeriesUid.value = null
+  fusion.ptSeriesUid.value = null
   // Destroy existing engine if any — will be recreated on next viewport-ready
   if (csEngine) {
     csEngine.destroy()
@@ -763,6 +905,53 @@ function onSeriesSelect(uid: string) {
   // Detect 4D data for this series
   if (appStore.selectedPatientId) {
     fourD.detect4D(appStore.selectedPatientId, uid)
+  }
+}
+
+// Fusion handlers
+async function findPetCtPairs() {
+  if (!appStore.sessionId || !appStore.selectedPatientId) return
+  await fusion.findPetCtPairs(appStore.sessionId, appStore.selectedPatientId)
+}
+
+async function toggleFusion() {
+  if (fusion.fusionEnabled.value) {
+    await fusion.disableFusion(csEngine, ['axial', 'sagittal', 'coronal'])
+    volumeLoaded = false
+    // Reload the CT volume
+    loadVolumeIntoViewports()
+  } else {
+    if (!fusion.ctSeriesUid.value || !fusion.ptSeriesUid.value) return
+    loadVolumeIntoViewports()
+  }
+}
+
+function setFusionCtSeries(uid: string) {
+  fusion.ctSeriesUid.value = uid
+  if (fusion.fusionEnabled.value) {
+    loadVolumeIntoViewports()
+  }
+}
+
+function setFusionPtSeries(uid: string) {
+  fusion.ptSeriesUid.value = uid
+  if (fusion.fusionEnabled.value) {
+    loadVolumeIntoViewports()
+  }
+}
+
+function updateFusionOpacity(value: number) {
+  fusion.setFusionOpacity(csEngine, ['axial', 'sagittal', 'coronal'], value)
+}
+
+async function updateBlendMode(mode: string) {
+  await fusion.setBlendMode(csEngine, ['axial', 'sagittal', 'coronal'], mode as 'default' | 'additive')
+}
+
+async function toggleSuv() {
+  fusion.showSuv.value = !fusion.showSuv.value
+  if (fusion.showSuv.value && fusion.ptSeriesUid.value && appStore.sessionId && appStore.selectedPatientId) {
+    await fusion.fetchSuvInfo(appStore.sessionId, appStore.selectedPatientId, fusion.ptSeriesUid.value)
   }
 }
 

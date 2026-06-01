@@ -12,7 +12,7 @@
         </button>
       </div>
       <div v-if="connections.length === 0" class="text-xs text-accent-400 py-2">
-        No PACS connections
+        {{ connectionsReady ? 'No PACS connections' : 'Loading connections...' }}
       </div>
       <div v-else class="space-y-1">
         <div
@@ -79,6 +79,7 @@ import type { PacsStudy, PacsSeries } from '@/composables/useDicomweb'
 
 defineProps<{
   connections: Array<{ name: string; base_url: string }>
+  connectionsReady: boolean
   studies: PacsStudy[]
   seriesList: PacsSeries[]
 }>()

@@ -186,29 +186,34 @@ async function loadAllFiles() {
     allFiles.value = []
     return
   }
-  const files: Array<{ id: string; filename: string; modality: string; patient_id: string; series_uid: string }> = []
-  for (const patient of patients.value) {
-    try {
+  const results = await Promise.allSettled(
+    patients.value.map(async (patient) => {
       const res = await fetch(`/api/dicom/patient/${appStore.sessionId}/${patient.patient_id}`)
-      if (res.ok) {
-        const data = await res.json()
-        for (const f of data.files || []) {
-          files.push({
-            id: f.id,
-            filename: f.filename,
-            modality: f.modality,
-            patient_id: patient.patient_id,
-            series_uid: f.series_uid,
-          })
-        }
-      }
-    } catch { /* skip */ }
+      if (!res.ok) return []
+      const data = await res.json()
+      return (data.files || []).map((f: { id: string; filename: string; modality: string; series_uid: string }) => ({
+        id: f.id,
+        filename: f.filename,
+        modality: f.modality,
+        patient_id: patient.patient_id,
+        series_uid: f.series_uid,
+      }))
+    })
+  )
+  const files: Array<{ id: string; filename: string; modality: string; patient_id: string; series_uid: string }> = []
+  for (const result of results) {
+    if (result.status === 'fulfilled') files.push(...result.value)
   }
   allFiles.value = files
 }
 
-watch(() => appStore.sessionId, () => { selectedFileId.value = null; metadata.value = null; loadAllFiles() }, { immediate: true })
-watch(patients, () => loadAllFiles())
+let loadAllFilesTimer: ReturnType<typeof setTimeout> | null = null
+function debouncedLoadAllFiles() {
+  if (loadAllFilesTimer) clearTimeout(loadAllFilesTimer)
+  loadAllFilesTimer = setTimeout(() => loadAllFiles(), 50)
+}
+watch(() => appStore.sessionId, () => { selectedFileId.value = null; metadata.value = null; debouncedLoadAllFiles() }, { immediate: true })
+watch(patients, () => debouncedLoadAllFiles())
 
 const availableModalities = computed(() => {
   const mods = new Set(allFiles.value.map(f => f.modality))

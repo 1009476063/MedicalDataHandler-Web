@@ -59,23 +59,20 @@
             </div>
           </div>
 
-          <div v-if="hasCTSeries">
+          <div v-if="formatOptions.length > 1">
             <label class="block text-sm font-medium text-accent-700 dark:text-accent-300 mb-1.5">
               {{ $t('export.format') }}
             </label>
             <div class="space-y-2">
-              <label class="flex items-center gap-2 p-3 rounded-lg border border-accent-200 dark:border-accent-700 cursor-pointer hover:bg-accent-50 dark:hover:bg-accent-800/50 transition-colors">
-                <input v-model="exportFormat" type="radio" value="ct" class="text-primary-500" />
+              <label
+                v-for="opt in formatOptions"
+                :key="opt.value"
+                class="flex items-center gap-2 p-3 rounded-lg border border-accent-200 dark:border-accent-700 cursor-pointer hover:bg-accent-50 dark:hover:bg-accent-800/50 transition-colors"
+              >
+                <input v-model="exportFormat" type="radio" :value="opt.value" class="text-primary-500" />
                 <div>
-                  <p class="text-sm font-medium text-accent-900 dark:text-white">{{ $t('export.formatCT') }}</p>
-                  <p class="text-xs text-accent-500 dark:text-accent-400">{{ $t('export.formatCTDesc') }}</p>
-                </div>
-              </label>
-              <label class="flex items-center gap-2 p-3 rounded-lg border border-accent-200 dark:border-accent-700 cursor-pointer hover:bg-accent-50 dark:hover:bg-accent-800/50 transition-colors">
-                <input v-model="exportFormat" type="radio" value="red" class="text-primary-500" />
-                <div>
-                  <p class="text-sm font-medium text-accent-900 dark:text-white">{{ $t('export.formatRED') }}</p>
-                  <p class="text-xs text-accent-500 dark:text-accent-400">{{ $t('export.formatREDDesc') }}</p>
+                  <p class="text-sm font-medium text-accent-900 dark:text-white">{{ $t(opt.label) }}</p>
+                  <p class="text-xs text-accent-500 dark:text-accent-400">{{ $t(opt.desc) }}</p>
                 </div>
               </label>
             </div>
@@ -160,7 +157,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref, reactive } from 'vue'
+import { computed, ref, reactive, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useAppStore } from '@/stores/app'
 import { useSettings } from '@/composables/useSettings'
@@ -172,7 +169,7 @@ import {
 
 const { t } = useI18n()
 const appStore = useAppStore()
-const { defaultExportFormat: exportFormat } = useSettings()
+const { exportDtype, exportUnit } = useSettings()
 const selectedPatientId = ref('')
 const selectedSeriesUids = ref<Set<string>>(new Set())
 const exporting = ref(false)
@@ -192,12 +189,42 @@ const selectedSeries = computed(() => {
   return studies.flatMap((s: any) => s.series || [])
 })
 
-const hasCTSeries = computed(() => {
-  const uid = Array.from(selectedSeriesUids.value)[0]
-  if (!uid) return false
-  const series = selectedSeries.value.find((s: any) => s.series_uid === uid)
-  return series?.modality === 'CT'
+const detectedModality = computed(() => {
+  const uids = Array.from(selectedSeriesUids.value)
+  if (uids.length === 0) return null
+  const first = selectedSeries.value.find((s: any) => s.series_uid === uids[0])
+  return first?.modality || null
 })
+
+const formatOptions = computed(() => {
+  switch (detectedModality.value) {
+    case 'CT':
+      return [
+        { value: 'ct', label: 'export.formatCT', desc: 'export.formatCTDesc' },
+        { value: 'red', label: 'export.formatRED', desc: 'export.formatREDDesc' },
+      ]
+    case 'MR':
+      return [
+        { value: 'mr', label: 'export.formatMR', desc: 'export.formatMRDesc' },
+      ]
+    case 'PT':
+      return [
+        { value: 'pet', label: 'export.formatPET', desc: 'export.formatPETDesc' },
+      ]
+    default:
+      return [
+        { value: 'native', label: 'export.formatNative', desc: 'export.formatNativeDesc' },
+      ]
+  }
+})
+
+const exportFormat = ref('ct')
+watch(detectedModality, () => {
+  const opts = formatOptions.value
+  if (opts.length > 0 && !opts.find(o => o.value === exportFormat.value)) {
+    exportFormat.value = opts[0].value
+  }
+}, { immediate: true })
 
 function toggleSeries(uid: string) {
   const newSet = new Set(selectedSeriesUids.value)
@@ -231,7 +258,7 @@ async function handleSingleExport() {
   exporting.value = true
   exportResult.value = null
   try {
-    const blob = await appStore.exportNrrd(selectedPatientId.value, uid, exportFormat.value)
+    const blob = await appStore.exportNrrd(selectedPatientId.value, uid, exportFormat.value, exportDtype.value, exportUnit.value)
     const url = URL.createObjectURL(blob)
     const a = document.createElement('a')
     a.href = url
@@ -265,7 +292,7 @@ async function handleBatchExport() {
 
   for (const uid of uids) {
     try {
-      const blob = await appStore.exportNrrd(selectedPatientId.value, uid, exportFormat.value)
+      const blob = await appStore.exportNrrd(selectedPatientId.value, uid, exportFormat.value, exportDtype.value, exportUnit.value)
       const url = URL.createObjectURL(blob)
       const a = document.createElement('a')
       a.href = url

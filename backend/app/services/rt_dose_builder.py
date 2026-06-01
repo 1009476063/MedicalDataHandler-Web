@@ -32,19 +32,19 @@ class RTDoseBuilder:
         from app.services.dicom_service import dicom_service
         return dicom_service.sessions.get(session_id)
 
-    def _find_rtdose_ds(self, session: dict, patient_id: str, dose_uid: str):
+    def _find_rtdose_ds(self, session_id: str, session: dict, patient_id: str, dose_uid: str):
         """Find and parse the RTDOSE dataset."""
         for fid, finfo in session["files"].items():
             if finfo["patient_id"] != patient_id or finfo["modality"] != "RTDOSE":
                 continue
             if finfo.get("file_id") != dose_uid and fid != dose_uid and finfo.get("series_uid") != dose_uid:
                 continue
-            raw_info = session["raw_data"].get(fid)
-            if not raw_info or "raw_bytes" not in raw_info:
+            raw_bytes = dicom_service.load_raw_dicom(session_id, fid)
+            if not raw_bytes:
                 continue
             try:
                 ds = pydicom.dcmread(
-                    pydicom.filebase.DicomBytesIO(raw_info["raw_bytes"]),
+                    pydicom.filebase.DicomBytesIO(raw_bytes),
                     force=True
                 )
                 return ds, fid
@@ -60,13 +60,13 @@ class RTDoseBuilder:
         doses = []
         for fid, finfo in session["files"].items():
             if finfo["patient_id"] == patient_id and finfo["modality"] == "RTDOSE":
-                raw_info = session["raw_data"].get(fid)
                 dose_units = "GY"
                 dose_type = "PHYSICAL"
-                if raw_info and "raw_bytes" in raw_info:
+                raw_bytes = dicom_service.load_raw_dicom(session_id, fid)
+                if raw_bytes:
                     try:
                         ds = pydicom.dcmread(
-                            pydicom.filebase.DicomBytesIO(raw_info["raw_bytes"]),
+                            pydicom.filebase.DicomBytesIO(raw_bytes),
                             force=True
                         )
                         dose_units = str(getattr(ds, "DoseUnits", "GY"))
@@ -90,7 +90,7 @@ class RTDoseBuilder:
         if not session:
             return None
 
-        ds, fid = self._find_rtdose_ds(session, patient_id, dose_uid)
+        ds, fid = self._find_rtdose_ds(session_id, session, patient_id, dose_uid)
         if ds is None:
             return None
 

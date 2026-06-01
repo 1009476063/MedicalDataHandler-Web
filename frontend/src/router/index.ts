@@ -1,5 +1,4 @@
 import { createRouter, createWebHistory } from 'vue-router'
-import i18n from '@/i18n'
 
 const router = createRouter({
   history: createWebHistory(),
@@ -77,10 +76,22 @@ const router = createRouter({
       meta: { titleKey: 'sidebar.nav.anonymization' },
     },
     {
+      path: '/worklist',
+      name: 'worklist',
+      component: () => import('@/views/WorklistView.vue'),
+      meta: { titleKey: 'sidebar.nav.worklist' },
+    },
+    {
       path: '/analysis',
       name: 'analysis',
       component: () => import('@/views/AnalysisView.vue'),
       meta: { titleKey: 'sidebar.nav.analysis' },
+    },
+    {
+      path: '/sr',
+      name: 'sr',
+      component: () => import('@/views/SRView.vue'),
+      meta: { titleKey: 'sidebar.nav.sr' },
     },
     {
       path: '/logging',
@@ -103,41 +114,34 @@ const router = createRouter({
   ],
 })
 
-// Preload all route chunks after initial render to eliminate navigation delay
-const routeImports = [
-  () => import('@/views/DashboardView.vue'),
-  () => import('@/views/ViewerView.vue'),
-  () => import('@/views/PatientsView.vue'),
-  () => import('@/views/MetadataView.vue'),
-  () => import('@/views/DataTableView.vue'),
-  () => import('@/views/PlansView.vue'),
-  () => import('@/views/ExportView.vue'),
-  () => import('@/views/ConverterView.vue'),
-  () => import('@/views/PostProcessingView.vue'),
-  () => import('@/views/SettingsView.vue'),
-  () => import('@/views/PacsView.vue'),
-  () => import('@/views/AnonymizationView.vue'),
-  () => import('@/views/AnalysisView.vue'),
-  () => import('@/views/LoggingView.vue'),
-  () => import('@/views/LoginView.vue'),
-]
-const preload = () => routeImports.forEach(loader => loader())
-if (typeof requestIdleCallback !== 'undefined') {
-  requestIdleCallback(preload)
-} else {
-  setTimeout(preload, 2000)
+// Cache i18n module — avoid re-importing on every navigation
+let _i18n: any = null
+async function getI18n() {
+  if (!_i18n) {
+    const mod = await import('@/i18n')
+    _i18n = mod.default
+  }
+  return _i18n
 }
 
 router.beforeEach(async (to) => {
   const titleKey = to.meta.titleKey as string
-  const title = titleKey ? i18n.global.t(titleKey) : 'Home'
-  document.title = `${title} - MedVista`
+  if (titleKey) {
+    try {
+      const i18n = await getI18n()
+      document.title = `${i18n.global.t(titleKey)} - MedVista`
+    } catch {
+      document.title = 'MedVista'
+    }
+  } else {
+    document.title = 'MedVista'
+  }
 
   // Auth guard: skip for login/callback routes
   const publicRoutes = ['login', 'auth-callback']
   if (publicRoutes.includes(to.name as string)) return
 
-  // Wait for auth config check to complete on first navigation
+  // Await auth check — ensures we know the answer before deciding
   await checkAuthEnabled()
 
   const token = localStorage.getItem('mdh_access_token')
@@ -165,6 +169,5 @@ function checkAuthEnabled() {
   })()
   return authCheckPromise
 }
-checkAuthEnabled()
 
 export default router

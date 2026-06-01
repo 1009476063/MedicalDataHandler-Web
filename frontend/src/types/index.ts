@@ -136,6 +136,101 @@ export interface QueueStatus {
 
 export type Modality = 'CT' | 'MR' | 'RTDOSE' | 'RTSTRUCT' | 'RTPLAN' | 'PT' | 'NM' | string
 
+export interface PetCtPair {
+  ct_series_uid: string
+  ct_description: string
+  pt_series_uid: string
+  pt_description: string
+  study_uid: string
+}
+
+export interface SuvInfo {
+  patient_weight: number | null
+  total_dose: number | null
+  half_life: number | null
+  decay_correction: string | null
+  suv_factor: number | null
+}
+
+export interface AIModel {
+  id: string
+  name: string
+  description: string
+  type: string
+}
+
+export interface AIJob {
+  job_id: string
+  status: 'pending' | 'running' | 'completed' | 'failed'
+  progress: number
+  model_id: string
+  created_at: string
+  error?: string
+}
+
+export interface AIResult {
+  job_id: string
+  model_id: string
+  masks: Array<{
+    label: string
+    shape: number[]
+    origin: number[]
+    spacing: number[]
+    data: number[][][]
+  }>
+}
+
+export interface ContentTreeNode {
+  id: string
+  relationship: string
+  concept_name: string
+  value_type: string
+  value: string
+  children: ContentTreeNode[]
+}
+
+export interface SrDocument {
+  id: string
+  patient_name: string
+  patient_id: string
+  study_date: string
+  content_date: string
+  modality: string
+  sr_type: string
+  title: string
+  institution_name: string
+  content_tree: ContentTreeNode[]
+  file_path: string
+  series_uid: string
+  sop_instance_uid: string
+}
+
+export interface AiFinding {
+  name: string
+  value: string
+  description?: string
+}
+
+export interface PrinterConfig {
+  id: string
+  name: string
+  ae_title: string
+  host: string
+  port: number
+  film_size: string
+  orientation: string
+  density: number
+}
+
+export interface PrintJob {
+  id: string
+  printer_id: string
+  status: string
+  film_size: string
+  orientation: string
+  created_at: string
+}
+
 export const MODALITY_COLORS: Record<string, { bg: string; text: string; dot: string }> = {
   CT: { bg: 'bg-blue-100 dark:bg-blue-900/30', text: 'text-blue-700 dark:text-blue-300', dot: 'bg-blue-500' },
   MR: { bg: 'bg-green-100 dark:bg-green-900/30', text: 'text-green-700 dark:text-green-300', dot: 'bg-green-500' },

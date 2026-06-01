@@ -27,6 +27,41 @@ export interface AnonResult {
   audit_log: string
 }
 
+export interface ComplianceViolation {
+  tag: string
+  value: string
+  message: string
+}
+
+export interface ComplianceResult {
+  compliant: boolean
+  violations: ComplianceViolation[]
+  checked_tags: number
+  passed: number
+  failed: number
+  profile: string
+  standard: string
+}
+
+export interface BurnedInResult {
+  has_burned_in: boolean
+  method: string
+  details: string
+}
+
+export interface AIBurnedInResult {
+  detected: boolean
+  regions: Array<{ type: string; description: string; confidence: number }>
+  confidence: number
+  raw_response: string
+}
+
+export interface AIComplianceResult {
+  compliant: boolean
+  risks: Array<{ tag: string; risk: string; severity: string }>
+  summary: string
+}
+
 export function useAnonymization() {
   const profiles = ref<AnonProfile[]>([])
   const preview = ref<AnonPreview | null>(null)
@@ -102,6 +137,64 @@ export function useAnonymization() {
     return resp.data
   }
 
+  async function validateCompliance(
+    sessionId: string,
+    patientId: string,
+    profile: string,
+    fileId?: string,
+  ): Promise<ComplianceResult> {
+    const resp = await axios.post('/api/anonymization/validate', {
+      session_id: sessionId,
+      patient_id: patientId,
+      file_id: fileId || null,
+      profile,
+    })
+    return resp.data as ComplianceResult
+  }
+
+  async function detectBurnedIn(
+    sessionId: string,
+    patientId: string,
+    fileId?: string,
+  ): Promise<BurnedInResult> {
+    const resp = await axios.post('/api/anonymization/detect-burned-in', {
+      session_id: sessionId,
+      patient_id: patientId,
+      file_id: fileId || null,
+    })
+    return resp.data as BurnedInResult
+  }
+
+  async function detectBurnedInAi(
+    sessionId: string,
+    patientId: string,
+    fileId?: string,
+    modelId?: string,
+  ): Promise<AIBurnedInResult> {
+    const resp = await axios.post('/api/anonymization/detect-burned-in-ai', {
+      session_id: sessionId,
+      patient_id: patientId,
+      file_id: fileId || null,
+      model_id: modelId || 'gpt-4o-mini',
+    })
+    return resp.data as AIBurnedInResult
+  }
+
+  async function validateComplianceAi(
+    sessionId: string,
+    patientId: string,
+    profile: string,
+    modelId?: string,
+  ): Promise<AIComplianceResult> {
+    const resp = await axios.post('/api/anonymization/validate-ai', {
+      session_id: sessionId,
+      patient_id: patientId,
+      profile,
+      model_id: modelId || 'gpt-4o-mini',
+    })
+    return resp.data as AIComplianceResult
+  }
+
   return {
     profiles,
     preview,
@@ -112,5 +205,9 @@ export function useAnonymization() {
     previewAnonymization,
     applyAnonymization,
     getAuditLog,
+    validateCompliance,
+    detectBurnedIn,
+    detectBurnedInAi,
+    validateComplianceAi,
   }
 }

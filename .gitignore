@@ -30,3 +30,9 @@ Thumbs.db
 
 # Lock files (keep pnpm-lock, ignore package-lock)
 frontend/package-lock.json
+
+# Generated reports
+*_REPORT.md
+*_ANALYSIS.md
+hybrid-mode-report.*
+ai_config.json

@@ -196,6 +196,102 @@
         @clear-all="seg.clearOverlays"
       />
 
+      <!-- PET-CT Fusion -->
+      <div v-if="fusionEnabled || fusionAvailable">
+        <h3 class="text-sm font-medium text-accent-700 dark:text-accent-300 mb-2">{{ $t('viewer.fusion') }}</h3>
+        <div class="space-y-2">
+          <label class="flex items-center gap-2 cursor-pointer">
+            <input
+              type="checkbox"
+              :checked="fusionEnabled"
+              class="rounded border-accent-300 text-primary-500 focus:ring-primary-500/50"
+              @change="$emit('toggleFusion')"
+            />
+            <span class="text-xs text-accent-700 dark:text-accent-300">{{ $t('viewer.fusionEnabled') }}</span>
+          </label>
+
+          <template v-if="fusionEnabled">
+            <div>
+              <label class="text-xs text-accent-500">{{ $t('viewer.ctSeries') }}</label>
+              <select
+                :value="fusionCtUid"
+                class="w-full px-2 py-1.5 mt-1 text-xs bg-accent-50 dark:bg-accent-800 border border-accent-200 dark:border-accent-700 rounded-lg text-accent-900 dark:text-white focus:outline-none focus:ring-1 focus:ring-primary-500/50"
+                @change="$emit('setFusionCtSeries', ($event.target as HTMLSelectElement).value)"
+              >
+                <option value="">{{ $t('viewer.selectCtSeries') }}</option>
+                <option v-for="p in petCtPairs" :key="p.ct_series_uid" :value="p.ct_series_uid">
+                  {{ p.ct_description || p.ct_series_uid }}
+                </option>
+              </select>
+            </div>
+
+            <div>
+              <label class="text-xs text-accent-500">{{ $t('viewer.ptSeries') }}</label>
+              <select
+                :value="fusionPtUid"
+                class="w-full px-2 py-1.5 mt-1 text-xs bg-accent-50 dark:bg-accent-800 border border-accent-200 dark:border-accent-700 rounded-lg text-accent-900 dark:text-white focus:outline-none focus:ring-1 focus:ring-primary-500/50"
+                @change="$emit('setFusionPtSeries', ($event.target as HTMLSelectElement).value)"
+              >
+                <option value="">{{ $t('viewer.selectPtSeries') }}</option>
+                <option v-for="p in petCtPairs" :key="p.pt_series_uid" :value="p.pt_series_uid">
+                  {{ p.pt_description || p.pt_series_uid }}
+                </option>
+              </select>
+            </div>
+
+            <div>
+              <label class="text-xs text-accent-500">{{ $t('viewer.blend') }}</label>
+              <div class="flex items-center gap-2 mt-1">
+                <input
+                  :value="fusionOpacity"
+                  type="range"
+                  :min="0"
+                  :max="1"
+                  step="0.05"
+                  class="flex-1 h-1.5 accent-primary-500"
+                  @input="$emit('updateFusionOpacity', Number(($event.target as HTMLInputElement).value))"
+                />
+                <span class="text-xs text-accent-600 dark:text-accent-400 w-8 text-right">{{ Math.round(fusionOpacity * 100) }}%</span>
+              </div>
+            </div>
+
+            <div>
+              <label class="text-xs text-accent-500">{{ $t('viewer.blendMode') }}</label>
+              <div class="flex gap-1 mt-1">
+                <button
+                  :class="['px-2 py-1 text-xs rounded transition-colors',
+                    fusionBlendMode === 'additive' ? 'bg-primary-100 dark:bg-primary-900/30 text-primary-700 dark:text-primary-300' : 'bg-accent-100 dark:bg-accent-800 text-accent-600 dark:text-accent-400']"
+                  @click="$emit('updateBlendMode', 'additive')"
+                >{{ $t('viewer.additive') }}</button>
+                <button
+                  :class="['px-2 py-1 text-xs rounded transition-colors',
+                    fusionBlendMode === 'default' ? 'bg-primary-100 dark:bg-primary-900/30 text-primary-700 dark:text-primary-300' : 'bg-accent-100 dark:bg-accent-800 text-accent-600 dark:text-accent-400']"
+                  @click="$emit('updateBlendMode', 'default')"
+                >{{ $t('viewer.default') }}</button>
+              </div>
+            </div>
+
+            <label class="flex items-center gap-2 cursor-pointer">
+              <input
+                type="checkbox"
+                :checked="fusionShowSuv"
+                class="rounded border-accent-300 text-primary-500 focus:ring-primary-500/50"
+                @change="$emit('toggleSuv')"
+              />
+              <span class="text-xs text-accent-700 dark:text-accent-300">{{ $t('viewer.showSuv') }}</span>
+            </label>
+
+            <div v-if="fusionSuvInfo && fusionShowSuv" class="text-[11px] text-accent-500 space-y-0.5 pl-4">
+              <p v-if="fusionSuvInfo.patient_weight">{{ $t('viewer.suvValue') }}: {{ fusionSuvInfo.suv_factor?.toFixed(4) ?? 'N/A' }}</p>
+              <p>W: {{ fusionSuvInfo.patient_weight ?? 'N/A' }} kg</p>
+              <p>Dose: {{ fusionSuvInfo.total_dose ?? 'N/A' }} Bq</p>
+            </div>
+          </template>
+
+          <p v-if="!fusionEnabled && petCtPairs.length === 0" class="text-xs text-accent-400">{{ $t('viewer.noPairsFound') }}</p>
+        </div>
+      </div>
+
       <!-- 4D Time Slider -->
       <TimeSlider
         v-if="fourD.is4D.value"
@@ -207,9 +303,30 @@
         @step-backward="fourD.stepBackward(appStore.selectedPatientId!, appStore.selectedSeriesUid!)"
         @play="fourD.play(appStore.selectedPatientId!, appStore.selectedSeriesUid!)"
         @pause="fourD.pause"
-        @update-fps="(f) => fourD.fps.value = f"
+        @update-fps="(f) => fourD.setFps(f)"
         @change-time-point="(pos) => { fourD.setTimePoint(pos); fourD.loadTimePoint(appStore.selectedPatientId!, appStore.selectedSeriesUid!, pos) }"
       />
+
+      <!-- AI Analysis -->
+      <div>
+        <h3 class="text-sm font-medium text-accent-700 dark:text-accent-300 mb-2">{{ $t('viewer.ai.title') }}</h3>
+        <AIPanel
+          v-model:slice-strategy="sliceStrategy"
+          :models="aiModels"
+          :loading="aiLoading"
+          :progress="aiProgress"
+          :progress-message="aiProgressMessage"
+          :analysis-result="aiResult"
+          :confidence-threshold="confidenceThreshold"
+          :study-summary="aiStudySummary"
+          :summary-loading="aiSummaryLoading"
+          @fetch-models="$emit('fetch-ai-models')"
+          @run-analysis="(modelId, prompt, strategy) => $emit('run-ai-analysis', modelId, prompt, strategy)"
+          @reset="$emit('reset-ai')"
+          @create-sr="$emit('create-sr')"
+          @generate-summary="$emit('generate-ai-summary')"
+        />
+      </div>
 
       <!-- Orientation Label Color -->
       <div>
@@ -282,7 +399,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, ref } from 'vue'
 import { useAppStore } from '@/stores/app'
 import { useTools } from '@/composables/useTools'
 import { useSegmentation } from '@/composables/useSegmentation'
@@ -291,7 +408,8 @@ import StatusBadge from '@/components/common/StatusBadge.vue'
 import SegmentationPanel from '@/components/viewer/SegmentationPanel.vue'
 import TimeSlider from '@/components/viewer/TimeSlider.vue'
 import MeasurementPanel from '@/components/viewer/MeasurementPanel.vue'
-import type { SeriesInfo, StructInfo, DoseInfo } from '@/types'
+import AIPanel from '@/components/viewer/AIPanel.vue'
+import type { SeriesInfo, StructInfo, DoseInfo, PetCtPair, SuvInfo, AIModel } from '@/types'
 
 const props = defineProps<{
   windowCenter: number
@@ -311,6 +429,23 @@ const props = defineProps<{
   dicomTagSearch: string
   dicomTags: Array<{ tag: string; name: string; value: string; vr: string }>
   filteredDicomTags: Array<{ tag: string; name: string; value: string; vr: string }>
+  fusionEnabled: boolean
+  fusionAvailable: boolean
+  fusionCtUid: string
+  fusionPtUid: string
+  fusionOpacity: number
+  fusionBlendMode: string
+  fusionShowSuv: boolean
+  fusionSuvInfo: SuvInfo | null
+  petCtPairs: PetCtPair[]
+  aiModels: AIModel[]
+  aiLoading: boolean
+  aiProgress: number
+  aiProgressMessage: string
+  aiResult: Record<string, unknown> | null
+  confidenceThreshold: number
+  aiStudySummary: { summary: string; key_findings: string[]; recommendations: string[] } | null
+  aiSummaryLoading: boolean
 }>()
 
 defineEmits<{
@@ -330,7 +465,20 @@ defineEmits<{
   'update:contourThickness': [value: number]
   'update:orientationLabelColor': [value: string]
   'update:dicomTagSearch': [value: string]
+  toggleFusion: []
+  setFusionCtSeries: [uid: string]
+  setFusionPtSeries: [uid: string]
+  updateFusionOpacity: [value: number]
+  updateBlendMode: [mode: string]
+  toggleSuv: []
+  'fetch-ai-models': []
+  'run-ai-analysis': [modelId: string, prompt: string, sliceStrategy: string]
+  'reset-ai': []
+  'create-sr': []
+  'generate-ai-summary': []
 }>()
+
+const sliceStrategy = ref('middle')
 
 const appStore = useAppStore()
 const tools = useTools()

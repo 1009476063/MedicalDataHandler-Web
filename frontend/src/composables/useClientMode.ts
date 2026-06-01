@@ -1,10 +1,14 @@
 import { ref } from 'vue'
-import {
-  registerClientLoaders,
-  storeDicomBuffer,
-  parseDicomMetadata,
-  clearDicomBuffers,
-} from '@/utils/clientDicomLoader'
+
+let _clientLoader: typeof import('@/utils/clientDicomLoader') | null = null
+async function getClientLoader() {
+  if (!_clientLoader) {
+    _clientLoader = await import('@/utils/clientDicomLoader')
+  }
+  return _clientLoader
+}
+
+const MAX_CLIENT_FILES = 500
 
 const isClientMode = ref(false)
 const backendAvailable = ref(true)
@@ -45,21 +49,24 @@ export async function checkBackend(): Promise<boolean> {
 }
 
 /** Enable client-only mode. */
-export function enableClientMode() {
-  registerClientLoaders()
+export async function enableClientMode() {
+  const loader = await getClientLoader()
+  loader.registerClientLoaders()
   isClientMode.value = true
 }
 
 /** Disable client-only mode and clear buffers. */
-export function disableClientMode() {
+export async function disableClientMode() {
   isClientMode.value = false
   clientFiles.value = []
-  clearDicomBuffers()
+  const loader = await getClientLoader()
+  loader.clearDicomBuffers()
 }
 
 /** Load DICOM files in client mode. Returns parsed metadata. */
 export async function loadClientFiles(files: File[]) {
-  registerClientLoaders()
+  const loader = await getClientLoader()
+  loader.registerClientLoaders()
   isClientMode.value = true
 
   const results: Array<{
@@ -70,8 +77,8 @@ export async function loadClientFiles(files: File[]) {
 
   for (const file of files) {
     const buffer = await file.arrayBuffer()
-    const metadata = parseDicomMetadata(buffer)
-    const imageId = storeDicomBuffer(buffer)
+    const metadata = loader.parseDicomMetadata(buffer)
+    const imageId = loader.storeDicomBuffer(buffer)
     results.push({
       id: imageId,
       buffer,
@@ -80,6 +87,12 @@ export async function loadClientFiles(files: File[]) {
   }
 
   clientFiles.value = [...clientFiles.value, ...results]
+
+  // Evict oldest files if over limit
+  while (clientFiles.value.length > MAX_CLIENT_FILES) {
+    clientFiles.value.shift()
+  }
+
   return results
 }
 
@@ -160,10 +173,16 @@ export function getFileMetadataById(imageId: string): Record<string, unknown> | 
   return file ? file.metadata : null
 }
 
+/** Remove a single client file by imageId. */
+export async function removeClientFile(imageId: string) {
+  clientFiles.value = clientFiles.value.filter(f => f.id !== imageId)
+}
+
 /** Clear all client files and buffers. */
-export function clearClientFiles() {
+export async function clearClientFiles() {
   clientFiles.value = []
-  clearDicomBuffers()
+  const loader = await getClientLoader()
+  loader.clearDicomBuffers()
 }
 
 export function useClientMode() {
@@ -179,5 +198,6 @@ export function useClientMode() {
     getSeriesImageIds,
     getSeriesMetadata,
     clearClientFiles,
+    removeClientFile,
   }
 }

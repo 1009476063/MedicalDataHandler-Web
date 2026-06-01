@@ -19,16 +19,21 @@ function extractTag(tag: Record<string, unknown>, key: string): string {
   return field?.Value?.[0] || ''
 }
 
-export function useDicomweb() {
-  const connections = ref<PacsConnection[]>([])
-  const studies = ref<PacsStudy[]>([])
-  const series = ref<PacsSeries[]>([])
-  const loading = ref(false)
-  const error = ref('')
+// Module-level singleton state — survives component mount/unmount cycles
+const connections = ref<PacsConnection[]>([])
+const studies = ref<PacsStudy[]>([])
+const series = ref<PacsSeries[]>([])
+const loading = ref(false)
+const error = ref('')
+const connectionsReady = ref(false)
 
-  async function fetchConnections() {
+export function useDicomweb() {
+
+  async function fetchConnections(force = false) {
+    if (connectionsReady.value && !force) return
     const resp = await axios.get('/api/dicomweb/connections')
-    connections.value = resp.data
+    connections.value = resp.data.data ?? resp.data
+    connectionsReady.value = true
   }
 
   async function connect(name: string, baseUrl: string, token?: string) {
@@ -40,7 +45,7 @@ export function useDicomweb() {
         base_url: baseUrl,
         auth_token: token || null,
       })
-      await fetchConnections()
+      await fetchConnections(true)
     } catch (e: unknown) {
       error.value = e instanceof Error ? e.message : 'Connection failed'
     } finally {
@@ -50,14 +55,14 @@ export function useDicomweb() {
 
   async function disconnect(name: string) {
     await axios.delete(`/api/dicomweb/connections/${name}`)
-    await fetchConnections()
+    await fetchConnections(true)
   }
 
   async function searchStudies(connection: string, params?: Record<string, string>) {
     loading.value = true
     try {
       const resp = await axios.get('/api/dicomweb/studies', { params: { connection, ...params } })
-      studies.value = resp.data
+      studies.value = resp.data.data ?? resp.data
     } finally {
       loading.value = false
     }
@@ -67,7 +72,7 @@ export function useDicomweb() {
     loading.value = true
     try {
       const resp = await axios.get(`/api/dicomweb/studies/${studyUid}/series`, { params: { connection } })
-      series.value = resp.data
+      series.value = resp.data.data ?? resp.data
     } finally {
       loading.value = false
     }
@@ -97,8 +102,18 @@ export function useDicomweb() {
     return extractTag(s, '0020000E') || ''
   }
 
+  function reset() {
+    connections.value = []
+    connectionsReady.value = false
+    studies.value = []
+    series.value = []
+    loading.value = false
+    error.value = ''
+  }
+
   return {
     connections,
+    connectionsReady,
     studies,
     series,
     loading,
@@ -114,5 +129,6 @@ export function useDicomweb() {
     seriesModality,
     seriesDescription,
     seriesUid,
+    reset,
   }
 }

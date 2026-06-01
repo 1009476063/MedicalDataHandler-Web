@@ -342,6 +342,7 @@
 import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useAppStore } from '@/stores/app'
+import { useSettings } from '@/composables/useSettings'
 import axios from 'axios'
 import {
   ArrowsRightLeftIcon,
@@ -353,12 +354,13 @@ import type { QueueStatus } from '@/types'
 
 const { t } = useI18n()
 const appStore = useAppStore()
+const { defaultModality, analysisConfidenceThreshold, dceMinFileCount } = useSettings()
 
 const patients = computed(() => appStore.patients)
 
 // Patient & modality selection
 const selectedPatientId = ref('')
-const selectedModality = ref('auto')
+const selectedModality = ref(defaultModality.value)
 
 // Sequence analysis state
 const analyzing = ref(false)
@@ -508,6 +510,8 @@ async function analyzeSequences() {
     const res = await axios.post('/api/analysis/analyze', {
       session_id: appStore.sessionId,
       patient_id: selectedPatientId.value,
+      confidence_threshold: analysisConfidenceThreshold.value,
+      dce_min_file_count: dceMinFileCount.value,
     })
     analysisResult.value = res.data
     addLog(t('sequence.scanDone', { count: res.data.all_series.length }), 'success')

@@ -1,6 +1,7 @@
 <template>
   <router-link
     :to="item.path"
+    @mouseenter="onMouseEnter"
     :class="[
       'flex items-center gap-3 px-3 py-2 rounded-xl transition-all duration-200 group',
       isActive
@@ -18,6 +19,7 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import { useRoute } from 'vue-router'
+import { prefetchViewerChunks } from '@/utils/prefetchViewer'
 
 interface NavItem {
   path: string
@@ -35,4 +37,10 @@ const isActive = computed(() => {
   if (props.item.path === '/') return route.path === '/'
   return route.path.startsWith(props.item.path)
 })
+
+function onMouseEnter() {
+  if (props.item.path === '/viewer') {
+    prefetchViewerChunks()
+  }
+}
 </script>

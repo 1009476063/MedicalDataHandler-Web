@@ -142,7 +142,7 @@
         </div>
         <div v-else class="space-y-3">
           <div
-            v-for="patient in patients.slice(0, 5)"
+            v-for="patient in recentPatients"
             :key="patient.patient_id"
             class="flex items-center justify-between p-3 rounded-lg bg-accent-50 dark:bg-accent-800/50 hover:bg-accent-100 dark:hover:bg-accent-800 transition-colors cursor-pointer"
             @click="goToPatient(patient)"
@@ -172,9 +172,18 @@
 import { computed, ref, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAppStore } from '@/stores/app'
-import { parseDicomFiles } from '@/utils/dicomClientParser'
 import type { ParseResult } from '@/utils/dicomClientParser'
 import { useClientMode } from '@/composables/useClientMode'
+
+let _parseDicomFiles: typeof import('@/utils/dicomClientParser').parseDicomFiles | null = null
+async function lazyParseDicomFiles(files: File[]): Promise<ParseResult> {
+  if (!_parseDicomFiles) {
+    const mod = await import('@/utils/dicomClientParser')
+    _parseDicomFiles = mod.parseDicomFiles
+  }
+  return _parseDicomFiles(files)
+}
+import { useSettings } from '@/composables/useSettings'
 import StatCard from '@/components/common/StatCard.vue'
 import LogPanel from '@/components/common/LogPanel.vue'
 import {
@@ -191,6 +200,7 @@ import {
 const router = useRouter()
 const appStore = useAppStore()
 const { isClientMode, backendAvailable, checkBackend } = useClientMode()
+const { recentPatientsCount } = useSettings()
 const fileInput = ref<HTMLInputElement>()
 const uploading = ref(false)
 const uploadProgress = ref(0)
@@ -202,6 +212,7 @@ onMounted(() => {
 })
 
 const patients = computed(() => appStore.patients || [])
+const recentPatients = computed(() => patients.value.slice(0, recentPatientsCount.value))
 const totalStudies = computed(() =>
   patients.value.reduce((sum, p) => sum + (p.studies?.length || 0), 0)
 )
@@ -234,7 +245,7 @@ async function handleFileSelect(e: Event) {
       await uploadFiles(files)
     } else {
       pendingFiles.value = files
-      preview.value = await parseDicomFiles(files)
+      preview.value = await lazyParseDicomFiles(files)
     }
   }
 }
@@ -248,7 +259,7 @@ function handleDrop(e: DragEvent) {
       uploadFiles(fileArray)
     } else {
       pendingFiles.value = fileArray
-      parseDicomFiles(fileArray).then(r => { preview.value = r })
+      lazyParseDicomFiles(fileArray).then(r => { preview.value = r })
     }
   }
 }

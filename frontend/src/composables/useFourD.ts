@@ -1,5 +1,6 @@
-import { ref, computed } from 'vue'
+import { ref, computed, onUnmounted } from 'vue'
 import { useAppStore } from '@/stores/app'
+import { useSettings } from './useSettings'
 
 export interface FourDTimePoint {
   position: number
@@ -9,16 +10,22 @@ export interface FourDTimePoint {
 
 export function useFourD() {
   const appStore = useAppStore()
+  const { playbackFps, fourDPlaybackMode } = useSettings()
   const is4D = ref(false)
   const timePoints = ref<FourDTimePoint[]>([])
   const currentTimePoint = ref(0)
   const loading = ref(false)
   const error = ref('')
   const playing = ref(false)
-  const fps = ref(4)
+  const fps = computed(() => playbackFps.value)
   const volumeData = ref<Record<string, { data: number[][][]; shape: number[]; spacing: number[]; origin: number[]; dtype: string; min: number; max: number; mean: number }>>({})
 
   let playTimer: ReturnType<typeof setInterval> | null = null
+  let isFetching = false
+  const MAX_VOLUME_CACHE = 10
+  const volumeCacheOrder: string[] = []
+
+  onUnmounted(() => pause())
 
   const timePointCount = computed(() => timePoints.value.length)
 
@@ -48,9 +55,16 @@ export function useFourD() {
   async function loadTimePoint(patientId: string, seriesUid: string, timePoint: number) {
     try {
       const result = await appStore.get4DVolume(patientId, seriesUid, timePoint)
-      // Merge into volumeData
+      // Merge into volumeData, evicting oldest when exceeding cache limit
       for (const [key, vol] of Object.entries(result.volumes)) {
+        if (!(key in volumeData.value)) {
+          volumeCacheOrder.push(key)
+        }
         volumeData.value[key] = vol
+      }
+      while (volumeCacheOrder.length > MAX_VOLUME_CACHE) {
+        const evictKey = volumeCacheOrder.shift()!
+        delete volumeData.value[evictKey]
       }
     } catch (e: unknown) {
       error.value = e instanceof Error ? e.message : 'Failed to load time point'
@@ -61,17 +75,35 @@ export function useFourD() {
     currentTimePoint.value = pos
   }
 
+  function setFps(value: number) {
+    playbackFps.value = value
+  }
+
   function play(patientId: string, seriesUid: string) {
     if (playing.value || timePoints.value.length <= 1) return
     playing.value = true
     const positions = timePoints.value.map(tp => tp.position)
     let idx = positions.indexOf(currentTimePoint.value)
     if (idx < 0) idx = 0
+    let direction = 1
 
     playTimer = setInterval(() => {
-      idx = (idx + 1) % positions.length
+      const mode = fourDPlaybackMode.value
+      if (mode === 'once' && idx === positions.length - 1 && direction === 1) {
+        pause()
+        return
+      }
+      if (mode === 'pingPong') {
+        if (idx >= positions.length - 1) direction = -1
+        else if (idx <= 0) direction = 1
+      }
+      idx += direction
+      idx = Math.max(0, Math.min(idx, positions.length - 1))
       currentTimePoint.value = positions[idx]
-      loadTimePoint(patientId, seriesUid, positions[idx])
+      if (!isFetching) {
+        isFetching = true
+        loadTimePoint(patientId, seriesUid, positions[idx]).finally(() => { isFetching = false })
+      }
     }, 1000 / fps.value)
   }
 
@@ -105,6 +137,7 @@ export function useFourD() {
     timePoints.value = []
     currentTimePoint.value = 0
     volumeData.value = {}
+    volumeCacheOrder.length = 0
     error.value = ''
   }
 
@@ -121,6 +154,7 @@ export function useFourD() {
     detect4D,
     loadTimePoint,
     setTimePoint,
+    setFps,
     play,
     pause,
     stepForward,

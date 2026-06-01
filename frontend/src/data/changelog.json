@@ -1,0 +1,20 @@
+[
+  {
+    "version": "1.1.0",
+    "date": "2026-05-30",
+    "changes": [
+      { "type": "feature", "text_zh": "设置页面优化：新增轮廓线粗细、默认工具、4D帧率、分割透明度等设置项", "text_en": "Settings optimization: contour thickness, default tool, 4D FPS, segment opacity" },
+      { "type": "feature", "text_zh": "新增更新日志功能", "text_en": "Add changelog feature" },
+      { "type": "fix", "text_zh": "修复查看器忽略默认窗宽窗位设置的问题", "text_en": "Fix viewer ignoring default window/level setting" },
+      { "type": "fix", "text_zh": "修复分割叠加不透明度未读取设置的问题", "text_en": "Fix segment overlay opacity not reading from settings" },
+      { "type": "fix", "text_zh": "修复4D播放帧率未读取设置的问题", "text_en": "Fix 4D playback FPS not reading from settings" }
+    ]
+  },
+  {
+    "version": "1.0.0",
+    "date": "2026-05-15",
+    "changes": [
+      { "type": "feature", "text_zh": "初始版本：WebGL 3D 查看器、RT 结构/剂量叠加、PACS 连接、DICOM 匿名化", "text_en": "Initial release: WebGL 3D viewer, RT structure/dose overlays, PACS connectivity, DICOM anonymization" }
+    ]
+  }
+]

@@ -11,6 +11,10 @@ app.use(router)
 app.use(i18n)
 app.mount('#app')
 
+// Prefetch Cornerstone3D viewer chunks during idle time
+import { prefetchViewerChunks } from './utils/prefetchViewer'
+prefetchViewerChunks()
+
 // Register Service Worker for slice caching (PWA)
 if ('serviceWorker' in navigator) {
   window.addEventListener('load', () => {

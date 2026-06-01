@@ -1,4 +1,4 @@
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 from typing import Optional
@@ -9,8 +9,10 @@ import asyncio
 from pathlib import Path
 
 from app.models.response import ApiResponse
+from app.utils.rate_limit import limiter
 from app.services.dicom_service import dicom_service
 from app.services.image_builder import ImageBuilder
+from app.services.ai_service import ai_service
 
 router = APIRouter()
 image_builder = ImageBuilder()
@@ -196,7 +198,8 @@ def _convert_hu_sync(req: ConvertHURequest) -> io.BytesIO:
 
 
 @router.post("/convert-hu")
-async def convert_hu_to_red(req: ConvertHURequest):
+@limiter.limit("10/minute")
+async def convert_hu_to_red(request: Request, req: ConvertHURequest):
     """Convert CT HU values to Relative Electron Density (RED)."""
     try:
         output = await asyncio.to_thread(_convert_hu_sync, req)
@@ -208,7 +211,7 @@ async def convert_hu_to_red(req: ConvertHURequest):
     except HTTPException:
         raise
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Export failed")
 
 
 @router.post("/rename-struct")
@@ -224,7 +227,7 @@ async def rename_struct(req: RenameStructRequest):
     except HTTPException:
         raise
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Rename failed")
 
 
 @router.post("/auto-rename-structs")
@@ -245,7 +248,7 @@ async def auto_rename_structs(session_id: str, patient_id: str):
 
         return ApiResponse(success=True, data={"renamed": len(renamed), "structures": renamed})
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Rename failed")
 
 
 @router.get("/tg263-names")
@@ -282,7 +285,8 @@ def _sum_doses_sync(req: SumDoseRequest) -> io.BytesIO:
 
 
 @router.post("/sum-doses")
-async def sum_doses(req: SumDoseRequest):
+@limiter.limit("10/minute")
+async def sum_doses(request: Request, req: SumDoseRequest):
     """Sum multiple dose distributions."""
     try:
         if len(req.dose_file_ids) < 2:
@@ -296,4 +300,117 @@ async def sum_doses(req: SumDoseRequest):
     except HTTPException:
         raise
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Batch rename failed")
+
+
+# ------------------------------------------------------------------
+# AI-assisted post-processing
+# ------------------------------------------------------------------
+class FuzzyRenameRequest(BaseModel):
+    session_id: str
+    patient_id: str
+    struct_names: list[str]
+    target_names: list[str] | None = None  # TG-263 targets; defaults to full list
+
+
+class SuggestWindowingRequest(BaseModel):
+    modality: str
+    pixel_min: float
+    pixel_max: float
+    pixel_mean: float
+    pixel_std: float
+    anatomy_hint: str = ""
+
+
+@router.post("/fuzzy-rename")
+async def fuzzy_rename_structs(req: FuzzyRenameRequest):
+    """Use AI to suggest TG-263 matches when exact rename fails."""
+    import httpx as _httpx
+
+    cfg = ai_service.get_config()
+    if not cfg["api_base"] or not cfg["api_key"]:
+        return ApiResponse(success=False, error="AI API not configured")
+
+    targets = req.target_names or list(TG263_NAMES.values())
+    prompt = (
+        "Given these DICOM structure names, suggest the best TG-263 standard name for each. "
+        "Return a JSON array of objects with keys: original, suggested, confidence (0-1), rationale.\n\n"
+        f"Structure names: {req.struct_names}\n"
+        f"TG-263 targets: {targets}"
+    )
+
+    try:
+        async with _httpx.AsyncClient(timeout=30) as client:
+            resp = await client.post(
+                f"{cfg['api_base']}/chat/completions",
+                headers={
+                    "Authorization": f"Bearer {cfg['api_key']}",
+                    "Content-Type": "application/json",
+                },
+                json={
+                    "model": "gpt-4o-mini",
+                    "messages": [{"role": "user", "content": prompt}],
+                    "max_tokens": 1024,
+                },
+            )
+            resp.raise_for_status()
+        body = resp.json()
+        content = body.get("choices", [{}])[0].get("message", {}).get("content", "")
+        import json as _json
+        if "```" in content:
+            json_str = content.split("```")[1]
+            if json_str.startswith("json"):
+                json_str = json_str[4:]
+            matches = _json.loads(json_str.strip())
+        else:
+            matches = _json.loads(content)
+        return ApiResponse(success=True, data={"matches": matches})
+    except Exception:
+        return ApiResponse(success=False, error="AI fuzzy rename failed")
+
+
+@router.post("/suggest-windowing")
+async def suggest_windowing(req: SuggestWindowingRequest):
+    """Use AI to suggest optimal window width/level for a DICOM series."""
+    import httpx as _httpx
+
+    cfg = ai_service.get_config()
+    if not cfg["api_base"] or not cfg["api_key"]:
+        return ApiResponse(success=False, error="AI API not configured")
+
+    prompt = (
+        f"Modality: {req.modality}\n"
+        f"Pixel range: [{req.pixel_min}, {req.pixel_max}], mean={req.pixel_mean:.1f}, std={req.pixel_std:.1f}\n"
+        f"Anatomy: {req.anatomy_hint or 'unknown'}\n\n"
+        "Suggest optimal window width (WW) and window level (WL) for viewing. "
+        "Return JSON: {\"suggestions\": [{\"name\": str, \"width\": int, \"level\": int, \"rationale\": str}]}"
+    )
+
+    try:
+        async with _httpx.AsyncClient(timeout=30) as client:
+            resp = await client.post(
+                f"{cfg['api_base']}/chat/completions",
+                headers={
+                    "Authorization": f"Bearer {cfg['api_key']}",
+                    "Content-Type": "application/json",
+                },
+                json={
+                    "model": "gpt-4o-mini",
+                    "messages": [{"role": "user", "content": prompt}],
+                    "max_tokens": 512,
+                },
+            )
+            resp.raise_for_status()
+        body = resp.json()
+        content = body.get("choices", [{}])[0].get("message", {}).get("content", "")
+        import json as _json
+        if "```" in content:
+            json_str = content.split("```")[1]
+            if json_str.startswith("json"):
+                json_str = json_str[4:]
+            result = _json.loads(json_str.strip())
+        else:
+            result = _json.loads(content)
+        return ApiResponse(success=True, data=result)
+    except Exception:
+        return ApiResponse(success=False, error="AI windowing suggestion failed")

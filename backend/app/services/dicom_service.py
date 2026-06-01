@@ -299,9 +299,18 @@ class DicomService:
         if modality in ("CT", "MR", "PT", "NM", "US", "XA"):
             session["raw_data"][file_id] = self._extract_pixel_data(ds, session_id, file_id)
 
-        # Store raw bytes for RT and SEG files so services can re-parse them
+        # Store raw bytes for RT and SEG files on disk to avoid unbounded memory
         if modality in ("RTSTRUCT", "RTDOSE", "RTPLAN", "SEG"):
-            session["raw_data"][file_id] = {"raw_bytes": raw_bytes}
+            raw_dir = UPLOAD_DIR / session_id / "raw"
+            raw_path = raw_dir / f"{file_id}.dcm"
+            try:
+                raw_path.parent.mkdir(parents=True, exist_ok=True)
+                raw_path.write_bytes(raw_bytes)
+                session["raw_data"][file_id] = {"raw_path": str(raw_path)}
+            except Exception as e:
+                log_service.warning(f"Failed to save raw DICOM to disk: {e}", "upload")
+                # Fallback: keep in memory only if disk write fails
+                session["raw_data"][file_id] = {"raw_bytes": raw_bytes}
 
     def _extract_pixel_data(self, ds, session_id: str, file_id: str) -> Optional[dict]:
         try:
@@ -414,6 +423,21 @@ class DicomService:
                 })
         return plans
 
+    def load_raw_dicom(self, session_id: str, file_id: str) -> bytes | None:
+        """Load raw DICOM bytes from disk or in-memory fallback."""
+        session = self.sessions.get(session_id)
+        if not session:
+            return None
+        raw_info = session["raw_data"].get(file_id)
+        if not raw_info:
+            return None
+        if "raw_path" in raw_info:
+            path = Path(raw_info["raw_path"])
+            if path.exists():
+                return path.read_bytes()
+            return None
+        return raw_info.get("raw_bytes")
+
     def get_structs(self, session_id: str, patient_id: str) -> list[dict]:
         """Get RT structure sets for a patient."""
         session = self.sessions.get(session_id)
@@ -424,11 +448,11 @@ class DicomService:
         for fid, finfo in session["files"].items():
             if finfo["patient_id"] == patient_id and finfo["modality"] == "RTSTRUCT":
                 # Parse ROI names from the raw DICOM data
-                raw_info = session["raw_data"].get(fid)
-                if raw_info and "raw_bytes" in raw_info:
+                raw_bytes = self.load_raw_dicom(session_id, fid)
+                if raw_bytes:
                     try:
                         ds = pydicom.dcmread(
-                            pydicom.filebase.DicomBytesIO(raw_info["raw_bytes"]),
+                            pydicom.filebase.DicomBytesIO(raw_bytes),
                             force=True
                         )
                         if hasattr(ds, "StructureSetROISequence"):
@@ -467,12 +491,12 @@ class DicomService:
         for fid, finfo in session["files"].items():
             if finfo["patient_id"] != patient_id or finfo["modality"] != "RTSTRUCT":
                 continue
-            raw_info = session["raw_data"].get(fid)
-            if not raw_info or "raw_bytes" not in raw_info:
+            raw_bytes = self.load_raw_dicom(session_id, fid)
+            if not raw_bytes:
                 continue
             try:
                 ds = pydicom.dcmread(
-                    pydicom.filebase.DicomBytesIO(raw_info["raw_bytes"]),
+                    pydicom.filebase.DicomBytesIO(raw_bytes),
                     force=True
                 )
                 if not hasattr(ds, "StructureSetROISequence"):
@@ -485,6 +509,134 @@ class DicomService:
                 continue
 
         return None
+
+    def get_suv_info(self, session_id: str, patient_id: str, series_uid: str) -> Optional[dict]:
+        """Extract SUV parameters from PET series DICOM headers.
+
+        Returns SUV factor and related parameters for PET quantification,
+        or None if the series is not a PET series or data is missing.
+        """
+        session = self.sessions.get(session_id)
+        if not session:
+            return None
+        self._touch_session(session_id)
+
+        # Find first file in this PET series to extract headers
+        target_file_id = None
+        for fid, finfo in session["files"].items():
+            if finfo["patient_id"] == patient_id and finfo["series_uid"] == series_uid:
+                if finfo["modality"] in ("PT", "NM"):
+                    target_file_id = fid
+                    break
+
+        if not target_file_id:
+            return None
+
+        # Re-read the original DICOM to get sequence tags not in metadata dict
+        raw_bytes = self.load_raw_dicom(session_id, target_file_id)
+        if not raw_bytes:
+            return None
+
+        try:
+            ds = pydicom.dcmread(
+                pydicom.filebase.DicomBytesIO(raw_bytes),
+                force=True,
+            )
+        except Exception:
+            return None
+
+        result: dict = {
+            "patient_weight": None,
+            "total_dose": None,
+            "half_life": None,
+            "decay_correction": None,
+            "suv_factor": None,
+        }
+
+        # Patient weight (0010,1030)
+        if hasattr(ds, "PatientWeight"):
+            result["patient_weight"] = float(ds.PatientWeight)
+
+        # RadiopharmaceuticalInformationSequence (0054,0016)
+        if hasattr(ds, "RadiopharmaceuticalInformationSequence"):
+            rps = ds.RadiopharmaceuticalInformationSequence
+            if len(rps) > 0:
+                rp = rps[0]
+                if hasattr(rp, "RadiopharmaceuticalTotalDose"):
+                    result["total_dose"] = float(rp.RadiopharmaceuticalTotalDose)
+                if hasattr(rp, "RadionuclideHalfLife"):
+                    result["half_life"] = float(rp.RadionuclideHalfLife)
+                if hasattr(rp, "DecayCorrection"):
+                    result["decay_correction"] = str(rp.DecayCorrection)
+
+        # Calculate SUV factor: weight * 1000 / total_dose
+        # SUV = pixel_value * scale_factor
+        # scale_factor = (patient_weight * 1000) / total_dose
+        # (assuming decay-corrected to injection time)
+        if result["patient_weight"] and result["total_dose"] and result["total_dose"] > 0:
+            result["suv_factor"] = (result["patient_weight"] * 1000.0) / result["total_dose"]
+
+        return result
+
+    def find_pt_series(self, session_id: str, patient_id: str) -> list[dict]:
+        """Find CT+PT series pairs within the same study for PET-CT fusion.
+
+        Returns a list of pairs: [{ ct_series_uid, ct_description, pt_series_uid, pt_description, study_uid }]
+        """
+        session = self.sessions.get(session_id)
+        if not session:
+            return []
+        self._touch_session(session_id)
+
+        # Collect CT and PT series grouped by study
+        ct_by_study: dict[str, list[dict]] = {}
+        pt_by_study: dict[str, list[dict]] = {}
+
+        for fid, finfo in session["files"].items():
+            if finfo["patient_id"] != patient_id:
+                continue
+            study_uid = finfo["study_uid"]
+            series_uid = finfo["series_uid"]
+            modality = finfo["modality"]
+
+            if modality == "CT":
+                if study_uid not in ct_by_study:
+                    ct_by_study[study_uid] = []
+                # Deduplicate by series_uid
+                if not any(s["series_uid"] == series_uid for s in ct_by_study[study_uid]):
+                    ct_by_study[study_uid].append({
+                        "series_uid": series_uid,
+                        "description": session["patients"].get(patient_id, {})
+                            .get("studies", {}).get(study_uid, {})
+                            .get("series", {}).get(series_uid, {}).get("description", ""),
+                    })
+            elif modality in ("PT", "NM"):
+                if study_uid not in pt_by_study:
+                    pt_by_study[study_uid] = []
+                if not any(s["series_uid"] == series_uid for s in pt_by_study[study_uid]):
+                    pt_by_study[study_uid].append({
+                        "series_uid": series_uid,
+                        "description": session["patients"].get(patient_id, {})
+                            .get("studies", {}).get(study_uid, {})
+                            .get("series", {}).get(series_uid, {}).get("description", ""),
+                    })
+
+        # Pair CT and PT series within the same study
+        pairs = []
+        for study_uid in ct_by_study:
+            if study_uid not in pt_by_study:
+                continue
+            for ct in ct_by_study[study_uid]:
+                for pt in pt_by_study[study_uid]:
+                    pairs.append({
+                        "ct_series_uid": ct["series_uid"],
+                        "ct_description": ct["description"],
+                        "pt_series_uid": pt["series_uid"],
+                        "pt_description": pt["description"],
+                        "study_uid": study_uid,
+                    })
+
+        return pairs
 
 
 # Shared singleton instance so all services access the same sessions dict

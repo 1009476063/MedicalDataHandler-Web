@@ -16,6 +16,8 @@ router = APIRouter()
 class AnalyzeRequest(BaseModel):
     session_id: str
     patient_id: str
+    confidence_threshold: float = 0.5
+    dce_min_file_count: int = 10
 
 
 @router.post("/analyze")
@@ -29,7 +31,9 @@ async def analyze_sequences(req: AnalyzeRequest):
 
     try:
         result = await asyncio.to_thread(
-            analyze_patient_sequences, session, req.patient_id
+            analyze_patient_sequences, session, req.patient_id,
+            confidence_threshold=req.confidence_threshold,
+            dce_min_file_count=req.dce_min_file_count,
         )
         log_service.info(
             f"Sequence analysis complete for patient {req.patient_id}: "
@@ -39,4 +43,4 @@ async def analyze_sequences(req: AnalyzeRequest):
         return ApiResponse(success=True, data=result)
     except Exception as e:
         log_service.error(f"Sequence analysis failed: {e}", "analysis")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Analysis failed")

@@ -2,19 +2,6 @@ import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
 import type { Patient, SliceData, StructInfo, DoseInfo, SeriesInfo, VolumeInfo, SegFile } from '@/types'
 import {
-  uploadDicom, uploadMedical,
-  getPatientDetail as apiGetPatientDetail,
-  getFileMetadata as apiGetFileMetadata,
-  getSlice as apiGetSlice, getSliceBinary as apiGetSliceBinary,
-  getVolumeBinary as apiGetVolumeBinary, getSeriesInfo as apiGetSeriesInfo,
-  getStructs as apiGetStructs, getStructMask as apiGetStructMask,
-  getDoseInfo as apiGetDoseInfo, getDoseSlice as apiGetDoseSlice,
-  getRoiBounds as apiGetRoiBounds,
-  getSegFiles as apiGetSegFiles, getSegMask as apiGetSegMask,
-  get4DInfo as apiGet4DInfo, get4DVolume as apiGet4DVolume,
-} from '@/api/dicom'
-import { exportNrrd as apiExportNrrd } from '@/api/export'
-import {
   checkBackend,
   loadClientFiles as loadClientFilesRaw,
   getClientPatients,
@@ -24,6 +11,18 @@ import {
 import { cleanupSessionAction } from './session'
 import { clientPatientToPatient, fetchPatients, loadClientPatients } from './patient'
 import { buildClientSeriesInfo } from './viewer'
+
+// Lazy-loaded API modules — deferred to avoid pulling axios into initial bundle
+let _dicomApi: typeof import('@/api/dicom') | null = null
+let _exportApi: typeof import('@/api/export') | null = null
+async function getDicomApi() {
+  if (!_dicomApi) _dicomApi = await import('@/api/dicom')
+  return _dicomApi
+}
+async function getExportApi() {
+  if (!_exportApi) _exportApi = await import('@/api/export')
+  return _exportApi
+}
 
 export const useAppStore = defineStore('app', () => {
   const sessionId = ref<string | null>(null)
@@ -57,15 +56,15 @@ export const useAppStore = defineStore('app', () => {
 
     const backendUp = await checkBackend()
 
-    if (!backendUp || hasMedicalFormat && !backendUp) {
+    if (!backendUp || hasMedicalFormat) {
       await loadClientFilesAction(files)
       uploading.value = false
       return
     }
 
-    const uploadFn = hasMedicalFormat ? uploadMedical : uploadDicom
-
     try {
+      const api = await getDicomApi()
+      const uploadFn = hasMedicalFormat ? api.uploadMedical : api.uploadDicom
       const result = await uploadFn(files, (p) => {
         uploadProgress.value = p
         onProgress?.(p)
@@ -115,7 +114,8 @@ export const useAppStore = defineStore('app', () => {
   ): Promise<SliceData | null> {
     if (!sessionId.value || !selectedPatientId.value) return null
     try {
-      return await apiGetSlice({
+      const api = await getDicomApi()
+      return await api.getSlice({
         session_id: sessionId.value,
         patient_id: selectedPatientId.value,
         series_uid: seriesUid,
@@ -136,7 +136,8 @@ export const useAppStore = defineStore('app', () => {
     }
     if (!sessionId.value || !selectedPatientId.value) return null
     try {
-      return await apiGetSeriesInfo(sessionId.value, selectedPatientId.value, seriesUid)
+      const api = await getDicomApi()
+      return await api.getSeriesInfo(sessionId.value, selectedPatientId.value, seriesUid)
     } catch {
       return null
     }
@@ -145,7 +146,8 @@ export const useAppStore = defineStore('app', () => {
   async function getStructs(): Promise<StructInfo[]> {
     if (!sessionId.value || !selectedPatientId.value) return []
     try {
-      const result = await apiGetStructs(sessionId.value, selectedPatientId.value)
+      const api = await getDicomApi()
+      const result = await api.getStructs(sessionId.value, selectedPatientId.value)
       return result.structures
     } catch {
       return []
@@ -155,7 +157,8 @@ export const useAppStore = defineStore('app', () => {
   async function getStructMask(structKey: string, sliceIndex: number, orientation = 'axial') {
     if (!sessionId.value || !selectedPatientId.value) return null
     try {
-      return await apiGetStructMask(sessionId.value, selectedPatientId.value, structKey, sliceIndex, orientation)
+      const api = await getDicomApi()
+      return await api.getStructMask(sessionId.value, selectedPatientId.value, structKey, sliceIndex, orientation)
     } catch {
       return null
     }
@@ -164,7 +167,8 @@ export const useAppStore = defineStore('app', () => {
   async function getDoseInfo(): Promise<DoseInfo[]> {
     if (!sessionId.value || !selectedPatientId.value) return []
     try {
-      const result = await apiGetDoseInfo(sessionId.value, selectedPatientId.value)
+      const api = await getDicomApi()
+      const result = await api.getDoseInfo(sessionId.value, selectedPatientId.value)
       return result.doses
     } catch {
       return []
@@ -174,7 +178,8 @@ export const useAppStore = defineStore('app', () => {
   async function getDoseSlice(doseUid: string, sliceIndex: number, orientation = 'axial') {
     if (!sessionId.value || !selectedPatientId.value) return null
     try {
-      return await apiGetDoseSlice(sessionId.value, selectedPatientId.value, doseUid, sliceIndex, orientation)
+      const api = await getDicomApi()
+      return await api.getDoseSlice(sessionId.value, selectedPatientId.value, doseUid, sliceIndex, orientation)
     } catch {
       return null
     }
@@ -186,7 +191,8 @@ export const useAppStore = defineStore('app', () => {
   ): Promise<SliceData | null> {
     if (!sessionId.value || !selectedPatientId.value) return null
     try {
-      const res = await apiGetSliceBinary({
+      const api = await getDicomApi()
+      const res = await api.getSliceBinary({
         session_id: sessionId.value,
         patient_id: selectedPatientId.value,
         series_uid: seriesUid,
@@ -229,7 +235,8 @@ export const useAppStore = defineStore('app', () => {
   ): Promise<{ data: ArrayBuffer; info: VolumeInfo } | null> {
     if (!sessionId.value || !selectedPatientId.value) return null
     try {
-      const res = await apiGetVolumeBinary({
+      const api = await getDicomApi()
+      const res = await api.getVolumeBinary({
         session_id: sessionId.value,
         patient_id: selectedPatientId.value,
         series_uid: seriesUid,
@@ -253,7 +260,8 @@ export const useAppStore = defineStore('app', () => {
   async function getSegFiles(): Promise<SegFile[]> {
     if (!sessionId.value || !selectedPatientId.value) return []
     try {
-      const result = await apiGetSegFiles(sessionId.value, selectedPatientId.value)
+      const api = await getDicomApi()
+      const result = await api.getSegFiles(sessionId.value, selectedPatientId.value)
       return result.segments
     } catch {
       return []
@@ -263,7 +271,8 @@ export const useAppStore = defineStore('app', () => {
   async function getSegMask(fileId: string, segmentNumber: number) {
     if (!sessionId.value) return null
     try {
-      return await apiGetSegMask(sessionId.value, fileId, segmentNumber)
+      const api = await getDicomApi()
+      return await api.getSegMask(sessionId.value, fileId, segmentNumber)
     } catch {
       return null
     }
@@ -275,7 +284,8 @@ export const useAppStore = defineStore('app', () => {
     }
     if (!sessionId.value) return null
     try {
-      return await apiGetFileMetadata(sessionId.value, fileId)
+      const api = await getDicomApi()
+      return await api.getFileMetadata(sessionId.value, fileId)
     } catch {
       return null
     }
@@ -303,7 +313,8 @@ export const useAppStore = defineStore('app', () => {
     }
     if (!sessionId.value) return []
     try {
-      const result = await apiGetPatientDetail(sessionId.value, patientId)
+      const api = await getDicomApi()
+      const result = await api.getPatientDetail(sessionId.value, patientId)
       return result.files || []
     } catch {
       return []
@@ -313,7 +324,8 @@ export const useAppStore = defineStore('app', () => {
   async function getRoiBounds(structKey: string) {
     if (!sessionId.value || !selectedPatientId.value) return null
     try {
-      return await apiGetRoiBounds(sessionId.value, selectedPatientId.value, structKey) as { name: string; bounds: { x: number[]; y: number[]; z: number[] }; center: { x: number; y: number; z: number } }
+      const api = await getDicomApi()
+      return await api.getRoiBounds(sessionId.value, selectedPatientId.value, structKey) as { name: string; bounds: { x: number[]; y: number[]; z: number[] }; center: { x: number; y: number; z: number } }
     } catch {
       return null
     }
@@ -322,20 +334,25 @@ export const useAppStore = defineStore('app', () => {
   async function exportNrrd(
     patientId: string,
     seriesUid: string,
-    format: string = 'ct'
+    format: string = 'ct',
+    dtype: string = 'float32',
+    unit: string = 'native',
   ): Promise<Blob> {
     if (!sessionId.value) throw new Error('No active session')
-    return await apiExportNrrd(sessionId.value, patientId, seriesUid, format)
+    const api = await getExportApi()
+    return await api.exportNrrd(sessionId.value, patientId, seriesUid, format, dtype, unit)
   }
 
   async function get4DInfo(patientId: string, seriesUid: string) {
     if (!sessionId.value) throw new Error('No active session')
-    return await apiGet4DInfo(sessionId.value, patientId, seriesUid) as { is_4d: boolean; time_point_count: number; time_points: Array<{ position: number; file_count: number; shape: number[] }> }
+    const api = await getDicomApi()
+    return await api.get4DInfo(sessionId.value, patientId, seriesUid) as { is_4d: boolean; time_point_count: number; time_points: Array<{ position: number; file_count: number; shape: number[] }> }
   }
 
   async function get4DVolume(patientId: string, seriesUid: string, timePoint?: number) {
     if (!sessionId.value) throw new Error('No active session')
-    return await apiGet4DVolume(sessionId.value, patientId, seriesUid, timePoint) as { volumes: Record<string, { data: number[][][]; shape: number[]; spacing: number[]; origin: number[]; dtype: string; min: number; max: number; mean: number }> }
+    const api = await getDicomApi()
+    return await api.get4DVolume(sessionId.value, patientId, seriesUid, timePoint) as { volumes: Record<string, { data: number[][][]; shape: number[]; spacing: number[]; origin: number[]; dtype: string; min: number; max: number; mean: number }> }
   }
 
   return {
