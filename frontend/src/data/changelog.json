@@ -1,5 +1,20 @@
 [
   {
+    "version": "2.1.0",
+    "date": "2026-06-01",
+    "changes": [
+      { "type": "feature", "text_zh": "AI 智能 ROI 勾画（ITK-SNAP 风格）：画笔、多边形、矩形、椭圆、魔棒、橡皮擦", "text_en": "AI-Powered ROI Drawing (ITK-SNAP Style): paintbrush, polygon, rectangle, ellipse, magic wand, eraser" },
+      { "type": "feature", "text_zh": "多标签管理：自定义名称和颜色，跨平面同步（轴位/矢状位/冠状位）", "text_en": "Multi-label management: custom name and color per label, cross-plane sync (axial/sagittal/coronal)" },
+      { "type": "feature", "text_zh": "形态学后处理：腐蚀、膨胀、高斯平滑", "text_en": "Morphological post-processing: erode, dilate, Gaussian smooth" },
+      { "type": "feature", "text_zh": "30 级撤销/重做，zlib 压缩快照", "text_en": "30-level undo/redo with zlib-compressed snapshots" },
+      { "type": "feature", "text_zh": "AI 分割：自动病灶检测、文本引导分割、参考图引导分割", "text_en": "AI Segmentation: auto-detect pathology, text-guided segmentation, reference-guided segmentation" },
+      { "type": "feature", "text_zh": "ROI 导出：NIfTI 标签图（.nii.gz）和 DICOM SEG 格式", "text_en": "ROI Export: NIfTI label map (.nii.gz) and DICOM SEG format" },
+      { "type": "feature", "text_zh": "NIfTI 标签图导入，支持继续编辑", "text_en": "NIfTI label map import for continued editing" },
+      { "type": "improvement", "text_zh": "Canvas2D 叠加渲染同时支持 WebGL 和 fallback 模式", "text_en": "Canvas2D overlay rendering for both WebGL and fallback modes" },
+      { "type": "improvement", "text_zh": "完整英文 + 简体中文双语 ROI 翻译", "text_en": "Complete English + Simplified Chinese bilingual ROI translations" }
+    ]
+  },
+  {
     "version": "2.0.0",
     "date": "2026-06-01",
     "changes": [

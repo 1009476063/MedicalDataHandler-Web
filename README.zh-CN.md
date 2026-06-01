@@ -8,7 +8,7 @@
 
 **在线体验：** https://medical.1661688.xyz
 
-![Version](https://img.shields.io/badge/version-2.0.0-059669)
+![Version](https://img.shields.io/badge/version-2.1.0-059669)
 ![Vue 3](https://img.shields.io/badge/Vue-3-42b883?logo=vue.js)
 ![FastAPI](https://img.shields.io/badge/FastAPI-0.115-009688?logo=fastapi)
 ![Python](https://img.shields.io/badge/Python-3.10+-3776ab?logo=python)
