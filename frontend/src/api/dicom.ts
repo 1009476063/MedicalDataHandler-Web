@@ -126,3 +126,30 @@ export async function get4DVolume(sessionId: string, patientId: string, seriesUi
   })
   return res.data.data ?? res.data
 }
+
+// --- AI Segmentation ---
+
+export async function runAutoSegmentation(params: {
+  session_id: string; patient_id: string; series_uid: string
+  label_map_id: string; label: number; model_id?: string
+}) {
+  const res = await api.post('/ai/segment/auto', params)
+  return res.data.data ?? res.data
+}
+
+export async function runTextSegmentation(params: {
+  session_id: string; patient_id: string; series_uid: string
+  text_prompt: string; label_map_id: string; label: number; model_id?: string
+}) {
+  const res = await api.post('/ai/segment/text', params)
+  return res.data.data ?? res.data
+}
+
+export async function runReferenceSegmentation(params: {
+  session_id: string; patient_id: string; series_uid: string
+  ref_label_map_id: string; ref_label: number; label_map_id: string
+  label: number; model_id?: string
+}) {
+  const res = await api.post('/ai/segment/reference', params)
+  return res.data.data ?? res.data
+}

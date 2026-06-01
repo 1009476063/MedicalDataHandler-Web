@@ -1,15 +1,22 @@
 <template>
   <div
     class="relative bg-black rounded-xl overflow-hidden border border-accent-700"
-    :class="{ 'cursor-crosshair': activeTool }"
+    :class="drawMode ? 'cursor-none' : (activeTool ? 'cursor-crosshair' : '')"
     @mousedown="onMouseDown"
     @mousemove="onMouseMove"
     @mouseup="onMouseUp"
     @mouseleave="onMouseUp"
     @wheel.prevent="onWheel"
-    @dblclick="resetView"
+    @dblclick="onDoubleClick"
   >
     <canvas ref="canvas" class="w-full h-full block" />
+
+    <!-- Draw cursor overlay -->
+    <div
+      v-if="drawMode && drawCursorX !== null"
+      class="pointer-events-none absolute border-2 rounded-full z-10"
+      :style="drawCursorStyle"
+    />
 
     <!-- Orientation Labels -->
     <template v-if="showOrientationLabels">
@@ -92,6 +99,10 @@ const props = withDefaults(defineProps<{
   currentPoints?: { x: number; y: number }[]
   spacing?: { x: number; y: number } | null
   panSpeed?: number
+  drawMode?: boolean
+  drawBrushRadius?: number
+  drawCursorX?: number | null
+  drawCursorY?: number | null
 }>(), {
   overlays: () => [],
   rotation: 0,
@@ -107,6 +118,10 @@ const props = withDefaults(defineProps<{
   annotations: () => [],
   currentPoints: () => [],
   spacing: null,
+  drawMode: false,
+  drawBrushRadius: 5,
+  drawCursorX: null,
+  drawCursorY: null,
 })
 
 const emit = defineEmits<{
@@ -116,6 +131,10 @@ const emit = defineEmits<{
   'crosshair-move': [x: number, y: number]
   'reset-view': []
   'click': [x: number, y: number]
+  'draw-mousemove': [canvasX: number, canvasY: number]
+  'draw-mousedown': [canvasX: number, canvasY: number]
+  'draw-mouseup': [canvasX: number, canvasY: number]
+  'draw-dblclick': []
 }>()
 
 const canvas = ref<HTMLCanvasElement>()
@@ -142,6 +161,18 @@ const orientationLabels = computed(() => {
     coronal: { top: 'S', bottom: 'I', left: 'R', right: 'L' },
   }
   return map[props.label.toLowerCase()] || map.axial
+})
+
+const drawCursorStyle = computed(() => {
+  if (props.drawCursorX === null || props.drawCursorY === null) return {}
+  const size = props.drawBrushRadius * 2
+  return {
+    left: `${props.drawCursorX - size / 2}px`,
+    top: `${props.drawCursorY - size / 2}px`,
+    width: `${size}px`,
+    height: `${size}px`,
+    borderColor: 'rgba(255, 255, 255, 0.8)',
+  }
 })
 
 function orientationLabelStyle(position: string) {
@@ -540,6 +571,14 @@ function parseColor(color: string): { r: number; g: number; b: number } {
 }
 
 function onMouseDown(e: MouseEvent) {
+  if (props.drawMode && e.button === 0) {
+    const rect = (canvas.value as HTMLCanvasElement).getBoundingClientRect()
+    const canvasX = e.clientX - rect.left
+    const canvasY = e.clientY - rect.top
+    emit('draw-mousedown', canvasX, canvasY)
+    return
+  }
+
   // If a measurement tool is active, handle click for annotation
   if (props.activeTool && e.button === 0 && !e.shiftKey && !e.ctrlKey) {
     const rect = (canvas.value as HTMLCanvasElement).getBoundingClientRect()
@@ -561,6 +600,10 @@ function onMouseMove(e: MouseEvent) {
     const x = e.clientX - rect.left
     const y = e.clientY - rect.top
     emit('crosshair-move', x, y)
+
+    if (props.drawMode) {
+      emit('draw-mousemove', x, y)
+    }
   }
 
   if (!isDragging) return
@@ -597,8 +640,22 @@ function onMouseMove(e: MouseEvent) {
   }
 }
 
-function onMouseUp() {
+function onMouseUp(e?: MouseEvent) {
+  if (props.drawMode && isDragging) {
+    const rect = (canvas.value as HTMLCanvasElement).getBoundingClientRect()
+    const canvasX = (e?.clientX ?? 0) - rect.left
+    const canvasY = (e?.clientY ?? 0) - rect.top
+    emit('draw-mouseup', canvasX, canvasY)
+  }
   isDragging = false
+}
+
+function onDoubleClick() {
+  if (props.drawMode) {
+    emit('draw-dblclick')
+    return
+  }
+  resetView()
 }
 
 function onWheel(e: WheelEvent) {

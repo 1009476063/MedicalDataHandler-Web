@@ -4,6 +4,42 @@ All notable changes to MedVista will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [2.1.0] - 2026-06-01
+
+### Added — AI-Powered ROI Drawing (ITK-SNAP Style)
+- Full-featured ROI drawing toolbar: paintbrush, polygon, rectangle, ellipse, magic wand (flood fill), eraser
+- Multi-label support with custom name and color per label
+- Real-time mask overlay rendering on all three MPR planes (axial, sagittal, coronal)
+- Cross-plane mask synchronization — draw on one plane, see on all
+- Undo/redo with zlib-compressed snapshots (30 levels deep)
+
+### Added — Morphological Post-Processing
+- Erode, dilate, and Gaussian smooth operations on individual labels
+- Clear label and clear all functionality
+
+### Added — AI Segmentation
+- Auto-segmentation: AI locates pathology via vision API, then generates pixel-level masks via classic image processing (Otsu thresholding + morphological ops)
+- Text-guided segmentation: describe target region in natural language (e.g. "liver tumor"), AI uses HU ranges and organ matching to segment
+- Reference-guided segmentation: provide a reference label, AI extracts intensity statistics and generates matching masks
+- SSE progress streaming for real-time segmentation feedback
+
+### Added — ROI Export
+- NIfTI label map export (.nii.gz) with per-label metadata
+- DICOM SEG export for clinical PACS integration
+- NIfTI label map import for loading previously exported ROIs
+
+### Added — ROI Settings
+- Default brush radius, draw overlay opacity, auto-save toggle, export format preference
+- All settings persist across sessions via singleton composable
+
+### Added — Bilingual ROI UI
+- Complete English + Simplified Chinese translations for all ROI features
+- DrawingToolbar, ROIPanel, and ViewerSidebar draw mode integration
+
+### Improved
+- ImageSliceViewer supports dual rendering modes (WebGL + Canvas2D fallback) for ROI overlays
+- Cornerstone3D viewers use transparent overlay canvas for draw event capture and brush cursor
+
 ## [2.0.0] - 2026-06-01
 
 ### Added — AI Integration

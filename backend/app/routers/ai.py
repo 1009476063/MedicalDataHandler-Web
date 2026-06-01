@@ -243,3 +243,95 @@ async def get_results(job_id: str, request: Request):
             "result": job.result,
         },
     )
+
+
+# ------------------------------------------------------------------
+# AI Segmentation endpoints
+# ------------------------------------------------------------------
+
+class AutoSegmentRequest(BaseModel):
+    model_config = {"protected_namespaces": ()}
+
+    session_id: str
+    patient_id: str
+    series_uid: str
+    label_map_id: str
+    label: int = 1
+    model_id: str = "gpt-4o"
+
+
+class TextSegmentRequest(BaseModel):
+    model_config = {"protected_namespaces": ()}
+
+    session_id: str
+    patient_id: str
+    series_uid: str
+    text_prompt: str
+    label_map_id: str
+    label: int = 1
+    model_id: str = "gpt-4o"
+
+
+class ReferenceSegmentRequest(BaseModel):
+    model_config = {"protected_namespaces": ()}
+
+    session_id: str
+    patient_id: str
+    series_uid: str
+    ref_label_map_id: str
+    ref_label: int = 1
+    label_map_id: str
+    label: int = 2
+    model_id: str = "gpt-4o"
+
+
+@router.post("/segment/auto")
+@limiter.limit("10/minute")
+async def segment_auto(req: AutoSegmentRequest, request: Request):
+    """Auto-detect lesions and generate segmentation mask."""
+    job = ai_service.create_job(req.model_id)
+    asyncio.create_task(
+        ai_service.run_auto_segmentation(
+            job, req.session_id, req.patient_id, req.series_uid,
+            req.label_map_id, req.label,
+        )
+    )
+    return ApiResponse(
+        success=True,
+        data={"job_id": job.job_id, "status": "pending"},
+    )
+
+
+@router.post("/segment/text")
+@limiter.limit("10/minute")
+async def segment_text(req: TextSegmentRequest, request: Request):
+    """Text-guided segmentation using organ matching and/or AI."""
+    job = ai_service.create_job(req.model_id)
+    asyncio.create_task(
+        ai_service.run_text_guided_segmentation(
+            job, req.session_id, req.patient_id, req.series_uid,
+            req.text_prompt, req.label_map_id, req.label,
+        )
+    )
+    return ApiResponse(
+        success=True,
+        data={"job_id": job.job_id, "status": "pending"},
+    )
+
+
+@router.post("/segment/reference")
+@limiter.limit("10/minute")
+async def segment_reference(req: ReferenceSegmentRequest, request: Request):
+    """Reference-guided segmentation using existing label as template."""
+    job = ai_service.create_job(req.model_id)
+    asyncio.create_task(
+        ai_service.run_reference_guided_segmentation(
+            job, req.session_id, req.patient_id, req.series_uid,
+            req.ref_label_map_id, req.ref_label,
+            req.label_map_id, req.label,
+        )
+    )
+    return ApiResponse(
+        success=True,
+        data={"job_id": job.job_id, "status": "pending"},
+    )

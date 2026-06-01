@@ -31,6 +31,21 @@
       >
         {{ $t('viewer.crosshairs') }}
       </button>
+
+      <div class="w-px h-4 bg-accent-200 dark:bg-accent-700 mx-1" />
+
+      <button
+        :class="[
+          'px-2 py-1 text-xs rounded transition-colors',
+          drawMode
+            ? 'bg-primary-500 text-white'
+            : 'bg-accent-100 dark:bg-accent-800 text-accent-700 dark:text-accent-300 hover:bg-accent-200 dark:hover:bg-accent-700',
+        ]"
+        title="Draw ROI"
+        @click="$emit('toggle-draw-mode')"
+      >
+        🖌 {{ $t('roi.drawMode') }}
+      </button>
     </template>
 
     <div class="flex-1" />
@@ -63,11 +78,13 @@ const props = defineProps<{
   activeTool: ToolName
   crosshairsEnabled: boolean
   canvasMode?: boolean
+  drawMode?: boolean
 }>()
 
 defineEmits<{
   'select-tool': [toolName: ToolName]
   'toggle-crosshairs': []
+  'toggle-draw-mode': []
   'clear-all': []
   'export-csv': []
 }>()

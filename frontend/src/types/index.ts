@@ -231,6 +231,67 @@ export interface PrintJob {
   created_at: string
 }
 
+// --- ROI Drawing Types ---
+
+export type ROIDrawTool = 'paintbrush' | 'polygon' | 'rectangle' | 'ellipse' | 'magic-wand' | 'eraser'
+
+export interface ROILabel {
+  id: number
+  name: string
+  color: string
+  visible: boolean
+  opacity: number
+  locked: boolean
+}
+
+export interface ROILabelMap {
+  id: string
+  name: string
+  patient_id: string
+  series_uid: string
+  shape: number[]
+  spacing: number[]
+  origin: number[]
+  labels: ROILabel[]
+  created_at: string
+  updated_at: string
+}
+
+export interface ROISliceMask {
+  label: number
+  slice_index: number
+  orientation: string
+  data: number[][]
+}
+
+export interface ROIDrawState {
+  activeLabelMapId: string | null
+  activeLabel: number
+  activeTool: ROIDrawTool
+  brushRadius: number
+  threshold: number
+  isDrawing: boolean
+}
+
+// --- AI Segmentation Types ---
+
+export interface AISegmentationJob {
+  job_id: string
+  status: 'pending' | 'running' | 'completed' | 'failed'
+  progress: number
+  model_id?: string
+  message?: string
+  error?: string
+  created_at: string
+}
+
+export interface AISegmentationResult {
+  job_id: string
+  label_map_id: string
+  label: number
+  slices_modified: number
+}
+
 export const MODALITY_COLORS: Record<string, { bg: string; text: string; dot: string }> = {
   CT: { bg: 'bg-blue-100 dark:bg-blue-900/30', text: 'text-blue-700 dark:text-blue-300', dot: 'bg-blue-500' },
   MR: { bg: 'bg-green-100 dark:bg-green-900/30', text: 'text-green-700 dark:text-green-300', dot: 'bg-green-500' },

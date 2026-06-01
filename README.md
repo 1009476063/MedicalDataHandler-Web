@@ -8,7 +8,7 @@ A web-based medical image viewer and processing platform for radiation therapy. 
 
 **Live Demo:** https://medical.1661688.xyz
 
-![Version](https://img.shields.io/badge/version-2.0.0-059669)
+![Version](https://img.shields.io/badge/version-2.1.0-059669)
 ![Vue 3](https://img.shields.io/badge/Vue-3-42b883?logo=vue.js)
 ![FastAPI](https://img.shields.io/badge/FastAPI-0.115-009688?logo=fastapi)
 ![Python](https://img.shields.io/badge/Python-3.10+-3776ab?logo=python)
@@ -71,6 +71,17 @@ MIT licensed, no vendor lock-in. Deploy on-premise for HIPAA/GDPR compliance. Co
 - **Arrow Annotations** — Text annotations on images
 - **Measurement Export** — CSV export of all measurements
 - **Persistent Annotations** — Save/load annotations per study
+
+### ROI Drawing (ITK-SNAP Style)
+- **Drawing Tools** — Paintbrush, polygon, rectangle, ellipse, magic wand (flood fill), eraser
+- **Multi-Label System** — Multiple labeled regions with custom name and color per label
+- **Cross-Plane Sync** — Draw on any plane (axial/sagittal/coronal), masks render on all three simultaneously
+- **Morphological Post-Processing** — Erode, dilate, Gaussian smooth on individual labels
+- **Undo/Redo** — 30-level undo/redo with zlib-compressed snapshots
+- **AI Segmentation** — Auto-detect pathology via vision AI, text-guided segmentation, reference-guided segmentation
+- **Export Formats** — NIfTI label map (.nii.gz) and DICOM SEG for clinical PACS integration
+- **NIfTI Import** — Load previously exported label maps for continued editing
+- **Dual Rendering** — Works with both Cornerstone3D WebGL and Canvas2D fallback viewers
 
 ### DICOM Segmentation (SEG) Support
 - **SEG Object Parsing** — Parse DICOM SEG objects and extract binary masks
@@ -208,6 +219,7 @@ MedVista/
 │   │   │   ├── export.py         # NRRD volume export
 │   │   │   ├── postprocessing.py # HU-RED, dose summation, TG-263
 │   │   │   ├── medical_formats.py# NIfTI/NRRD/MHA upload
+│   │   │   ├── roi.py            # ROI label map CRUD, draw, export
 │   │   │   ├── config.py         # TG-263 config, window presets
 │   │   │   └── logging.py        # Activity logging
 │   │   ├── services/
@@ -223,6 +235,7 @@ MedVista/
 │   │   │   ├── dicom_converter_service.py# DICOM-to-NIfTI
 │   │   │   ├── sequence_analysis_service.py
 │   │   │   ├── nifti_service.py          # NIfTI/NRRD/MHA loader
+│   │   │   ├── roi_service.py            # ROI label map storage, draw, undo/redo, export
 │   │   │   └── log_service.py
 │   │   └── middleware/
 │   │       └── auth.py           # FastAPI auth dependency
@@ -236,7 +249,8 @@ MedVista/
 │   │   │   ├── layout/           # AppLayout, AppSidebar, AppHeader, AuthGuard
 │   │   │   ├── viewer/           # Cornerstone3DViewer, MeasurementToolbar/Panel,
 │   │   │   │                     # SegmentationPanel, TimeSlider, ViewerHeader,
-│   │   │   │                     # ViewerSidebar, ImageSliceViewer (Canvas2D)
+│   │   │   │                     # ViewerSidebar, ImageSliceViewer (Canvas2D),
+│   │   │   │                     # DrawingToolbar, ROIPanel
 │   │   │   ├── pacs/             # PacsConnectionDialog, PacsBrowser
 │   │   │   └── common/           # DataTable, StatusBadge, etc.
 │   │   ├── composables/
@@ -248,6 +262,8 @@ MedVista/
 │   │   │   ├── useAnonymization  # Anonymization state
 │   │   │   ├── useAuth           # OIDC login/token management
 │   │   │   ├── useSettings       # Persistent app settings (singleton)
+│   │   │   ├── useROIDrawing     # ROI drawing state, operations, AI segmentation
+│   │   │   ├── useROIDrawInput   # Mouse/touch input handling for draw tools
 │   │   │   └── useClientMode     # Backend availability detection
 │   │   ├── utils/
 │   │   │   ├── cornerstoneVolumeLoader.ts  # Custom volume loader
@@ -360,6 +376,23 @@ export CORS_ORIGINS=http://localhost:5173,http://localhost:3000
 | POST | `/api/analysis/analyze` | Analyze DICOM sequences |
 | POST | `/api/postprocessing/convert-hu` | HU to RED conversion |
 | POST | `/api/postprocessing/sum-doses` | Sum dose distributions |
+| POST | `/api/roi/create` | Create empty label map |
+| GET | `/api/roi/list/{session}/{patient}` | List label maps for patient |
+| POST | `/api/roi/paint` | Paint stroke on label map |
+| POST | `/api/roi/shape` | Fill shape on label map |
+| POST | `/api/roi/magic-wand` | Magic wand flood fill |
+| POST | `/api/roi/slice-mask` | Get mask for a single label on a slice |
+| POST | `/api/roi/slice-all` | Get all label masks on a slice |
+| POST | `/api/roi/erode` | Erode label |
+| POST | `/api/roi/dilate` | Dilate label |
+| POST | `/api/roi/smooth` | Gaussian smooth label |
+| POST | `/api/roi/undo` | Undo last operation |
+| POST | `/api/roi/redo` | Redo last undone operation |
+| POST | `/api/roi/export/nifti` | Export label map as NIfTI |
+| POST | `/api/roi/export/dicom-seg` | Export label map as DICOM SEG |
+| POST | `/api/ai/segment/auto` | AI auto-segmentation |
+| POST | `/api/ai/segment/text` | Text-guided segmentation |
+| POST | `/api/ai/segment/reference` | Reference-guided segmentation |
 | GET | `/api/export/nrrd/{session}/{patient}/{series}` | Export NRRD volume |
 | POST | `/api/auth/login` | Login (OIDC or local) |
 | GET | `/api/auth/me` | Get current user |

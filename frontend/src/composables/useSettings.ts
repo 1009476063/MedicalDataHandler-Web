@@ -43,6 +43,10 @@ const defaults: Record<string, unknown> = {
   defaultSegmentPalette: 'vivid',
   defaultFusionOpacity: 0.5,
   defaultBlendMode: 'additive',
+  defaultBrushRadius: 5,
+  defaultDrawOpacity: 0.4,
+  autoSaveRoi: true,
+  roiExportFormat: 'nifti',
 }
 
 let _refs: Record<string, Ref> | null = null
@@ -89,5 +93,9 @@ export function useSettings() {
     defaultSegmentPalette: Ref<string>
     defaultFusionOpacity: Ref<number>
     defaultBlendMode: Ref<string>
+    defaultBrushRadius: Ref<number>
+    defaultDrawOpacity: Ref<number>
+    autoSaveRoi: Ref<boolean>
+    roiExportFormat: Ref<string>
   }
 }

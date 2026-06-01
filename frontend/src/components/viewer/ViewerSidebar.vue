@@ -381,6 +381,30 @@
         </div>
       </div>
 
+      <!-- ROI Drawing -->
+      <div v-if="drawMode">
+        <h3 class="text-sm font-medium text-accent-700 dark:text-accent-300 mb-2">{{ $t('roi.labels') }}</h3>
+        <ROIPanel
+          :labels="roiLabels"
+          :active-label="roiActiveLabel"
+          :ai-loading="roiAiLoading"
+          :ai-progress="roiAiProgress"
+          :ai-message="roiAiMessage"
+          @select-label="(id) => $emit('roi-select-label', id)"
+          @update-label-color="(id, c) => $emit('roi-update-label-color', id, c)"
+          @remove-label="(id) => $emit('roi-remove-label', id)"
+          @erode="$emit('roi-erode')"
+          @dilate="$emit('roi-dilate')"
+          @smooth="$emit('roi-smooth')"
+          @clear-label="$emit('roi-clear-label')"
+          @run-auto-segment="$emit('roi-run-auto-segment')"
+          @run-text-segment="(p) => $emit('roi-run-text-segment', p)"
+          @run-reference-segment="$emit('roi-run-reference-segment')"
+          @export-nifti="$emit('roi-export-nifti')"
+          @export-dicom-seg="$emit('roi-export-dicom-seg')"
+        />
+      </div>
+
       <!-- Measurements -->
       <MeasurementPanel :measurements="tools.measurements.value" />
 
@@ -409,7 +433,8 @@ import SegmentationPanel from '@/components/viewer/SegmentationPanel.vue'
 import TimeSlider from '@/components/viewer/TimeSlider.vue'
 import MeasurementPanel from '@/components/viewer/MeasurementPanel.vue'
 import AIPanel from '@/components/viewer/AIPanel.vue'
-import type { SeriesInfo, StructInfo, DoseInfo, PetCtPair, SuvInfo, AIModel } from '@/types'
+import ROIPanel from '@/components/viewer/ROIPanel.vue'
+import type { SeriesInfo, StructInfo, DoseInfo, PetCtPair, SuvInfo, AIModel, ROILabel } from '@/types'
 
 const props = defineProps<{
   windowCenter: number
@@ -446,6 +471,12 @@ const props = defineProps<{
   confidenceThreshold: number
   aiStudySummary: { summary: string; key_findings: string[]; recommendations: string[] } | null
   aiSummaryLoading: boolean
+  drawMode?: boolean
+  roiLabels: ROILabel[]
+  roiActiveLabel: number
+  roiAiLoading: boolean
+  roiAiProgress: number
+  roiAiMessage: string
 }>()
 
 defineEmits<{
@@ -476,6 +507,18 @@ defineEmits<{
   'reset-ai': []
   'create-sr': []
   'generate-ai-summary': []
+  'roi-select-label': [id: number]
+  'roi-update-label-color': [id: number, color: string]
+  'roi-remove-label': [id: number]
+  'roi-erode': []
+  'roi-dilate': []
+  'roi-smooth': []
+  'roi-clear-label': []
+  'roi-run-auto-segment': []
+  'roi-run-text-segment': [prompt: string]
+  'roi-run-reference-segment': []
+  'roi-export-nifti': []
+  'roi-export-dicom-seg': []
 }>()
 
 const sliceStrategy = ref('middle')

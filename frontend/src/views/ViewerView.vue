@@ -21,10 +21,26 @@
       :canvas-mode="useCanvasFallback"
       :active-tool="useCanvasFallback ? (canvasTools.activeTool.value ?? 'Length') : tools.activeTool.value"
       :crosshairs-enabled="!useCanvasFallback"
+      :draw-mode="roi.drawMode.value"
       @select-tool="useCanvasFallback ? (canvasTools.activeTool.value = $event as 'Length' | 'Probe') : tools.setActive($event)"
       @toggle-crosshairs="() => {}"
       @clear-all="useCanvasFallback ? canvasTools.clearAnnotations() : tools.clearAll"
       @export-csv="exportMeasurementsCsv"
+      @toggle-draw-mode="toggleDrawMode"
+    />
+
+    <!-- Drawing Toolbar (shown in draw mode) -->
+    <DrawingToolbar
+      v-if="roi.drawMode.value"
+      :active-tool="drawInput.activeTool.value"
+      :brush-radius="roi.brushRadius.value"
+      :can-undo="roi.canUndo.value"
+      :can-redo="roi.canRedo.value"
+      @select-tool="onDrawToolSelect"
+      @update:brush-radius="onDrawBrushRadiusUpdate"
+      @undo="onDrawUndo"
+      @redo="onDrawRedo"
+      @exit-draw="toggleDrawMode"
     />
 
     <div class="flex-1 flex min-h-0">
@@ -48,8 +64,16 @@
             :current-points="canvasTools.currentPoints.value"
             :overlays="canvasOverlays[orientation] || []"
             :spacing="seriesInfo?.spacing ? { x: seriesInfo.spacing[0] ?? 1, y: seriesInfo.spacing[1] ?? 1 } : null"
+            :draw-mode="roi.drawMode.value"
+            :draw-brush-radius="roi.brushRadius.value"
+            :draw-cursor-x="drawInput.cursorX.value"
+            :draw-cursor-y="drawInput.cursorY.value"
             @slice-change="(delta: number) => handleCanvasSliceChange(orientation, canvasSliceIndex[orientation] + delta)"
             @click="(x: number, y: number) => handleCanvasAnnotateClick(x, y, orientation)"
+            @draw-mousedown="onDrawMouseDown"
+            @draw-mousemove="onDrawMouseMove"
+            @draw-mouseup="onDrawMouseUp"
+            @draw-dblclick="onDrawDblClick"
           />
         </div>
         <!-- Cornerstone3D WebGL mode -->
@@ -62,8 +86,16 @@
               :loading="loading"
               :window-width="windowWidth"
               :window-center="windowCenter"
+              :draw-mode="roi.drawMode.value"
+              :draw-brush-radius="roi.brushRadius.value"
+              :draw-cursor-x="drawInput.cursorX.value"
+              :draw-cursor-y="drawInput.cursorY.value"
               @viewport-ready="onViewportReady('axial', $event)"
               @resize="onViewportResize"
+              @draw-mousedown="onDrawMouseDown"
+              @draw-mousemove="onDrawMouseMove"
+              @draw-mouseup="onDrawMouseUp"
+              @draw-dblclick="onDrawDblClick"
             />
           </div>
           <div class="min-h-[200px]">
@@ -74,8 +106,16 @@
               :loading="loading"
               :window-width="windowWidth"
               :window-center="windowCenter"
+              :draw-mode="roi.drawMode.value"
+              :draw-brush-radius="roi.brushRadius.value"
+              :draw-cursor-x="drawInput.cursorX.value"
+              :draw-cursor-y="drawInput.cursorY.value"
               @viewport-ready="onViewportReady('sagittal', $event)"
               @resize="onViewportResize"
+              @draw-mousedown="onDrawMouseDown"
+              @draw-mousemove="onDrawMouseMove"
+              @draw-mouseup="onDrawMouseUp"
+              @draw-dblclick="onDrawDblClick"
             />
           </div>
           <div class="min-h-[200px]">
@@ -86,8 +126,16 @@
               :loading="loading"
               :window-width="windowWidth"
               :window-center="windowCenter"
+              :draw-mode="roi.drawMode.value"
+              :draw-brush-radius="roi.brushRadius.value"
+              :draw-cursor-x="drawInput.cursorX.value"
+              :draw-cursor-y="drawInput.cursorY.value"
               @viewport-ready="onViewportReady('coronal', $event)"
               @resize="onViewportResize"
+              @draw-mousedown="onDrawMouseDown"
+              @draw-mousemove="onDrawMouseMove"
+              @draw-mouseup="onDrawMouseUp"
+              @draw-dblclick="onDrawDblClick"
             />
           </div>
         </div>
@@ -129,6 +177,12 @@
         :ai-study-summary="ai.studySummary.value"
         :ai-summary-loading="ai.summaryLoading.value"
         :confidence-threshold="settings.analysisConfidenceThreshold.value"
+        :draw-mode="roi.drawMode.value"
+        :roi-labels="roi.labels.value"
+        :roi-active-label="roi.activeLabel.value"
+        :roi-ai-loading="roi.aiSegLoading.value"
+        :roi-ai-progress="roi.aiSegProgress.value"
+        :roi-ai-message="roi.aiSegMessage.value"
         @patient-change="onPatientChange"
         @series-select="onSeriesSelect"
         @apply-preset="applyPreset"
@@ -156,6 +210,18 @@
         @reset-ai="ai.reset"
         @create-sr="createSrFromAi"
         @generate-ai-summary="generateAiSummary"
+        @roi-select-label="onRoiSelectLabel"
+        @roi-update-label-color="onRoiUpdateLabelColor"
+        @roi-remove-label="onRoiRemoveLabel"
+        @roi-erode="onRoiErode"
+        @roi-dilate="onRoiDilate"
+        @roi-smooth="onRoiSmooth"
+        @roi-clear-label="onRoiClearLabel"
+        @roi-run-auto-segment="onRoiRunAutoSegment"
+        @roi-run-text-segment="onRoiRunTextSegment"
+        @roi-run-reference-segment="onRoiRunReferenceSegment"
+        @roi-export-nifti="onRoiExportNifti"
+        @roi-export-dicom-seg="onRoiExportDicomSeg"
       />
     </div>
 
@@ -235,6 +301,9 @@ import { detectWebGL, type WebGLCapability } from '@/utils/webglDetector'
 import ImageSliceViewer from '@/components/viewer/ImageSliceViewer.vue'
 import PrintDialog from '@/components/viewer/PrintDialog.vue'
 import { useCanvasTools } from '@/composables/useCanvasTools'
+import { useROIDrawing } from '@/composables/useROIDrawing'
+import { useROIDrawInput } from '@/composables/useROIDrawInput'
+import DrawingToolbar from '@/components/viewer/DrawingToolbar.vue'
 
 // Lazy-loaded Cornerstone3D modules — loaded in onMounted to reduce initial bundle
 let RenderingEngine: any
@@ -256,6 +325,38 @@ const screenshotDataUrl = ref('')
 const ai = useAI()
 const sr = useSR()
 const settings = useSettings()
+const roi = useROIDrawing()
+const drawInput = useROIDrawInput({
+  onPaintStroke: async (points, radius) => {
+    const orient = getDrawOrientation()
+    await roi.paintStroke(orient, canvasSliceIndex.value[orient], points.map(p => [p.x, p.y]), radius)
+    await refreshRoiMasks(orient)
+  },
+  onShapeFill: async (shapeType, points) => {
+    const orient = getDrawOrientation()
+    await roi.fillShape(orient, canvasSliceIndex.value[orient], shapeType, points.map(p => [p.x, p.y]))
+    await refreshRoiMasks(orient)
+  },
+  onFloodFill: async (x, y) => {
+    const orient = getDrawOrientation()
+    const pixelData = canvasSliceData.value[orient]
+    if (pixelData) {
+      await roi.floodFill(orient, canvasSliceIndex.value[orient], x, y, pixelData)
+      await refreshRoiMasks(orient)
+    }
+  },
+  onEraseStroke: async (points, radius) => {
+    const orient = getDrawOrientation()
+    await roi.eraseAt(orient, canvasSliceIndex.value[orient], points.map(p => [p.x, p.y]), radius)
+    await refreshRoiMasks(orient)
+  },
+})
+
+async function refreshRoiMasks(orient: string) {
+  if (!roi.activeLabelMapId.value) return
+  const masks = await roi.loadSliceMasks(orient, canvasSliceIndex.value[orient])
+  roiMasksByOrientation.value = { ...roiMasksByOrientation.value, [orient]: masks }
+}
 
 const windowPresetsMap: Record<string, { center: number; width: number }> = {
   auto: { center: 40, width: 400 },
@@ -287,6 +388,18 @@ const canvasMaxSlice = ref<Record<string, number>>({ axial: 0, sagittal: 0, coro
 const canvasLoading = ref(false)
 const canvasTools = useCanvasTools()
 const canvasOverlays = ref<Record<string, Array<{ mask: number[][] | null; color: string; opacity: number; name?: string }>>>({})
+
+// ROI masks cache per orientation for overlay rendering
+const roiMasksByOrientation = ref<Record<string, Record<number, number[][]>>>({})
+
+const orientationForCurrentSlice = computed(() => {
+  if (drawInput.activeTool.value === 'polygon') return 'axial'
+  return 'axial'
+})
+
+function getDrawOrientation(): string {
+  return orientationForCurrentSlice.value
+}
 
 // GPU info from backend
 const gpuInfo = ref<{ gpu_available: boolean; gpu_name?: string } | null>(null)
@@ -373,7 +486,7 @@ function setStructColor(structKey: string, color: string) {
   structColorMap.value = { ...structColorMap.value, [structKey]: color }
 }
 
-// Load RT struct overlays for Canvas2D mode
+// Load RT struct overlays + ROI masks for Canvas2D mode
 async function loadCanvasOverlays() {
   if (!useCanvasFallback.value || !appStore.selectedSeriesUid) return
 
@@ -382,6 +495,7 @@ async function loadCanvasOverlays() {
     overlays[orient] = []
   }
 
+  // RT struct overlays
   for (const s of structs.value) {
     if (!enabledStructOverlays.value.has(s.key)) continue
     const color = structColorMap.value[s.key] || structColors[structs.value.indexOf(s) % structColors.length]
@@ -402,6 +516,24 @@ async function loadCanvasOverlays() {
       }
     }
   }
+
+  // ROI label overlays
+  if (roi.activeLabelMapId.value) {
+    for (const orient of ['axial', 'sagittal', 'coronal'] as const) {
+      const masks = roiMasksByOrientation.value[orient] || {}
+      for (const [labelIdStr, mask] of Object.entries(masks)) {
+        const labelId = Number(labelIdStr)
+        const label = roi.labels.value.find(l => l.id === labelId)
+        overlays[orient].push({
+          mask,
+          color: label?.color || '#ff0000',
+          opacity: label?.opacity ?? 0.4,
+          name: label?.name || `Label ${labelId}`,
+        })
+      }
+    }
+  }
+
   canvasOverlays.value = overlays
 }
 
@@ -428,6 +560,159 @@ async function centerOnRoi(structKey: string) {
     }
   }
   csEngine.render()
+}
+
+// Load ROI masks for all orientations when label map exists and draw mode is active
+watch(
+  [() => roi.activeLabelMapId.value, () => canvasSliceIndex.value.axial, () => canvasSliceIndex.value.sagittal, () => canvasSliceIndex.value.coronal],
+  async () => {
+    if (!roi.activeLabelMapId.value || !roi.drawMode.value) return
+    for (const orient of ['axial', 'sagittal', 'coronal'] as const) {
+      const masks = await roi.loadSliceMasks(orient, canvasSliceIndex.value[orient])
+      roiMasksByOrientation.value = { ...roiMasksByOrientation.value, [orient]: masks }
+    }
+  },
+)
+
+// --- Draw Mode Handlers ---
+
+const drawInputActive = ref(false)
+
+function toggleDrawMode() {
+  roi.drawMode.value = !roi.drawMode.value
+  if (roi.drawMode.value) {
+    drawInputActive.value = true
+    // Exit measurement tool in canvas mode
+    if (useCanvasFallback.value) {
+      canvasTools.activeTool.value = null
+    }
+  } else {
+    drawInputActive.value = false
+    drawInput.cancelCurrentAction()
+    roiMasksByOrientation.value = {}
+  }
+}
+
+function onDrawToolSelect(tool: string) {
+  drawInput.setTool(tool as any)
+}
+
+function onDrawBrushRadiusUpdate(val: number) {
+  roi.brushRadius.value = val
+}
+
+function onDrawUndo() {
+  roi.undo().then(() => {
+    refreshRoiMasks('axial')
+    refreshRoiMasks('sagittal')
+    refreshRoiMasks('coronal')
+  })
+}
+
+function onDrawRedo() {
+  roi.redo().then(() => {
+    refreshRoiMasks('axial')
+    refreshRoiMasks('sagittal')
+    refreshRoiMasks('coronal')
+  })
+}
+
+// Draw event handlers — used by both Canvas2D and Cornerstone3D viewers
+function onDrawMouseDown(e: { x: number; y: number }) {
+  if (!roi.drawMode.value || !drawInputActive.value) return
+  drawInput.handleMouseDown(e.x, e.y)
+}
+
+function onDrawMouseMove(e: { x: number; y: number }) {
+  if (!roi.drawMode.value || !drawInputActive.value) return
+  drawInput.handleMouseMove(e.x, e.y)
+}
+
+function onDrawMouseUp() {
+  if (!roi.drawMode.value || !drawInputActive.value) return
+  drawInput.handleMouseUp()
+}
+
+function onDrawDblClick() {
+  if (!roi.drawMode.value || !drawInputActive.value) return
+  drawInput.handleDoubleClick()
+}
+
+// ROI sidebar event handlers
+function onRoiSelectLabel(id: number) {
+  roi.activeLabel.value = id
+}
+
+function onRoiUpdateLabelColor(id: number, color: string) {
+  roi.labels.value = roi.labels.value.map(l => l.id === id ? { ...l, color } : l)
+}
+
+function onRoiRemoveLabel(id: number) {
+  roi.removeLabel(id)
+}
+
+function onRoiErode() {
+  roi.erode().then(() => refreshAllRoiMasks())
+}
+
+function onRoiDilate() {
+  roi.dilate().then(() => refreshAllRoiMasks())
+}
+
+function onRoiSmooth() {
+  roi.smooth().then(() => refreshAllRoiMasks())
+}
+
+function onRoiClearLabel() {
+  roi.invalidateCache()
+  refreshAllRoiMasks()
+}
+
+async function refreshAllRoiMasks() {
+  for (const orient of ['axial', 'sagittal', 'coronal'] as const) {
+    await refreshRoiMasks(orient)
+  }
+}
+
+async function onRoiRunAutoSegment() {
+  if (!appStore.sessionId || !appStore.selectedPatientId || !appStore.selectedSeriesUid) return
+  await roi.runAutoSegment(appStore.sessionId, appStore.selectedPatientId, appStore.selectedSeriesUid)
+  refreshAllRoiMasks()
+}
+
+async function onRoiRunTextSegment(textPrompt: string) {
+  if (!appStore.sessionId || !appStore.selectedPatientId || !appStore.selectedSeriesUid) return
+  await roi.runTextSegment(appStore.sessionId, appStore.selectedPatientId, appStore.selectedSeriesUid, textPrompt)
+  refreshAllRoiMasks()
+}
+
+async function onRoiRunReferenceSegment(refLabelMapId: string, refLabel: number) {
+  if (!appStore.sessionId || !appStore.selectedPatientId || !appStore.selectedSeriesUid) return
+  await roi.runReferenceSegment(appStore.sessionId, appStore.selectedPatientId, appStore.selectedSeriesUid, refLabelMapId, refLabel)
+  refreshAllRoiMasks()
+}
+
+async function onRoiExportNifti() {
+  const blob = await roi.exportNifti()
+  if (!blob) return
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = url
+  a.download = `roi_${appStore.selectedSeriesUid || 'export'}.nii.gz`
+  a.click()
+  URL.revokeObjectURL(url)
+}
+
+async function onRoiExportDicomSeg() {
+  if (!appStore.selectedPatientId || !seriesInfo.value?.study_uid) return
+  const blob = await roi.exportDicomSeg(appStore.selectedPatientId, seriesInfo.value.study_uid)
+  if (!blob) return
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = url
+  a.download = `roi_${appStore.selectedSeriesUid || 'export'}.dcm`
+  a.click()
+  URL.revokeObjectURL(url)
 }
 
 onMounted(async () => {
